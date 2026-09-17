@@ -1,0 +1,52 @@
+name: 功能建议
+description: 提出新功能或改进建议
+title: '[Feature] '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先看一眼 [README 的「硬性约束」](../README.md#硬性约束设计红线)——
+        涉及 AI 调用、新增外部域名或遥测的建议无法被接受。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题
+      description: 描述使用场景与痛点，而不只是"想要某个功能"
+      placeholder: 我在读一个大型 Python 仓库时，无法...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 你期望的方案
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 涉及模块
+      options:
+        - 文件树 / 浏览体验
+        - 调用关系图
+        - 符号跳转 / 全局搜索
+        - 代码度量
+        - AI 上下文包
+        - 多语言 / 主题
+        - 打包 / 部署
+        - 其它
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: 约束确认
+      options:
+        - label: 该方案不调用任何在线 AI 服务、不新增外部网络域名（本地 Ollama 为规划中例外）
+          required: true
+        - label: 该方案可以在完全离线（本地 ZIP）环境下工作
+          required: true

@@ -1,0 +1,48 @@
+# dependencies
+node_modules
+
+# build output
+dist
+coverage
+*.tsbuildinfo
+
+# rust / tauri
+src-tauri/target
+src-tauri/gen
+
+# generated assets (populated by scripts/copy-grammars.mjs)
+public/grammars
+
+# test artifacts
+test-results
+playwright-report
+
+# packaged artifacts (produced by scripts/build-exe.ps1, copied to repo root)
+/CodeAtlas.exe
+/CodeAtlas_*-setup.exe
+
+# scratch files
+*.log
+/*.txt
+*.local
+.DS_Store
+
+# editors / IDE
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+ehthumbs.db
+
+# env / secrets
+.env
+.env.*
+*.pem
+
+# logs from package managers
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# agent workspace memory (local-only working notes, not for the public repo)
+.workbuddy/

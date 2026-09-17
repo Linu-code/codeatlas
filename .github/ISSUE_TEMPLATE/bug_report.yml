@@ -1,0 +1,79 @@
+name: Bug 报告
+description: 报告 CodeAtlas 的问题（崩溃、加载失败、分析结果异常等）
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请先确认你使用的版本，并尽量提供可复现的最小信息。
+        **请勿粘贴私有仓库内容或 GitHub Token。**
+
+  - type: input
+    id: version
+    attributes:
+      label: CodeAtlas 版本
+      description: 应用内状态栏或安装包文件名中的版本号
+      placeholder: v1.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: 输入方式
+      options:
+        - GitHub 网址
+        - 仓库名搜索
+        - 本地 ZIP
+        - 其它
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 输入 https://github.com/...
+        2. 点击「调用关系图」
+        3. 观察到 ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期表现
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际表现
+      description: 有报错请附控制台信息（桌面版按 F12 打开 DevTools）
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 确认项
+      options:
+        - label: 我已确认问题在关闭 jsDelivr 兜底（默认关闭）的情况下依然存在
+          required: false
+        - label: 我未在此 Issue 中粘贴任何私有代码或凭据
+          required: true

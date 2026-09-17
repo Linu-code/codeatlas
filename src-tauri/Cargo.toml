@@ -1,0 +1,27 @@
+[package]
+name = "codeatlas"
+version = "1.0.0"
+description = "CodeAtlas - local-first code understanding & navigation"
+authors = ["CodeAtlas contributors"]
+edition = "2021"
+
+# Rust 核心只承担：多窗口管理、读 ZIP 字节、配置文件读写。
+# 所有分析逻辑在前端 TypeScript，Rust 侧刻意保持极薄。
+[lib]
+name = "codeatlas_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+[profile.release]
+# exe 体积优化：去调试符号 + 压缩
+strip = true
+lto = true
+codegen-units = 1

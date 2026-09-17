@@ -1,0 +1,59 @@
+version: 2
+
+updates:
+  # npm 依赖
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: 'chore(deps)'
+    groups:
+      # 开发工具类合并为一个 PR，降低噪音
+      dev-tooling:
+        patterns:
+          - 'vite'
+          - 'vitest'
+          - 'typescript'
+          - 'tailwindcss'
+          - 'postcss'
+          - 'autoprefixer'
+          - '@vitejs/*'
+          - '@types/*'
+      playwright:
+        patterns:
+          - '@playwright/*'
+    ignore:
+      # ⚠️ web-tree-sitter 与 tree-sitter-wasms 必须成对升级！
+      # 0.25+ 运行时改用新版 dylink 段，与 tree-sitter-wasms@0.1.13 的旧 ABI 不兼容。
+      # 升级步骤见 README「版本锁定说明」；此处禁止 Dependabot 自动升级，避免 CI 变红。
+      - dependency-name: web-tree-sitter
+      - dependency-name: tree-sitter-wasms
+
+  # Rust / Tauri 依赖
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: 'chore(deps)'
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: 'chore(ci)'

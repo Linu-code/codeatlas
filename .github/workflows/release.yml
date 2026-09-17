@@ -1,0 +1,91 @@
+name: Release（Windows exe）
+
+# 打 tag（如 v1.0.0）时自动构建 Windows 安装包并发布到 GitHub Release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: 构建 Windows 安装包
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 确保 WebView2 运行时可用（构建期）
+        run: |
+          Invoke-WebRequest -Uri https://go.microsoft.com/fwlink/p/?LinkId=2124703 -OutFile $env:TEMP\WebView2Setup.exe
+          Start-Process -FilePath $env:TEMP\WebView2Setup.exe -ArgumentList '/silent /install' -Wait
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 单测（发布前把关）
+        run: npm test
+
+      - name: 打包 exe（NSIS 安装包 + 可执行文件）
+        # 统一使用 build:exe：脚本自动探测并注入 MSVC / Windows SDK 环境，
+        # 规避直接 npm run tauri build 时的 link.exe not found（见 docs/ACCEPTANCE.md）
+        run: npm run build:exe
+
+      - name: 计算绿色版 exe 的校验和
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path src-tauri/target/release/*.exe | Select-Object -First 1
+          Get-FileHash -Path $exe.FullName -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $($exe.Name)" } | Out-File -FilePath SHA256SUMS.txt -Encoding utf8
+          Get-Content SHA256SUMS.txt
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/*.exe
+            SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-docs:
+    name: 部署文档站到 GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-windows
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

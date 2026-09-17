@@ -1,0 +1,73 @@
+{
+  "name": "codeatlas",
+  "private": true,
+  "version": "1.0.0",
+  "description": "CodeAtlas - local-first code understanding & navigation. Zero cloud AI, zero telemetry.",
+  "license": "MIT",
+  "author": "CodeAtlas contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Linu-code/codeatlas.git"
+  },
+  "homepage": "https://github.com/Linu-code/codeatlas#readme",
+  "bugs": {
+    "url": "https://github.com/Linu-code/codeatlas/issues"
+  },
+  "keywords": [
+    "code-navigation",
+    "static-analysis",
+    "tree-sitter",
+    "call-graph",
+    "code-metrics",
+    "tauri",
+    "local-first",
+    "offline"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-grammars.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-grammars.mjs",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:tree-sitter": "node scripts/check-tree-sitter.cjs",
+    "make-icon": "node -e \"console.log('run: python scripts/make-icon.py')\"",
+    "build:exe": "powershell -ExecutionPolicy Bypass -File scripts/build-exe.ps1",
+    "tauri": "tauri",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.1",
+    "i18next": "^26.4.2",
+    "jszip": "^3.10.1",
+    "markdown-it": "^15.0.2",
+    "mermaid": "^12.0.0",
+    "prismjs": "^1.30.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^17.0.14",
+    "tree-sitter-wasms": "^0.1.13",
+    "web-tree-sitter": "^0.22.6"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@tauri-apps/cli": "^2.1.0",
+    "@types/markdown-it": "^14.2.0",
+    "@types/node": "^26.5.1",
+    "@types/prismjs": "^1.26.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14",
+    "typescript": "~5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CodeAtlas（码图）— 本地优先的代码理解与导航工具</title>
+<meta name="description" content="CodeAtlas：为开发者绘制可交互的代码地图。目录是地形，调用关系是道路，AI 上下文包是给智能助手的旅行指南。完全本地、免费、轻量、安全。" />
+<style>
+  /* 文档站沿用产品的 Atlas Blue 色板 */
+  :root {
+    --bg: #1b1d23;
+    --bg-2: #23262e;
+    --border: #2e323c;
+    --text: #e4e6eb;
+    --text-2: #9ba1ac;
+    --primary: #4a6cf7;
+    --primary-hover: #5d7bff;
+    --accent: #7c9eff;
+    --success: #4ade80;
+    --warning: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    line-height: 1.75;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  header.hero { padding: 72px 0 40px; text-align: center; }
+  .logo {
+    width: 88px; height: 88px; margin: 0 auto 20px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, #4a6cf7, #2a3e96);
+    position: relative;
+  }
+  /* 用一个纯 CSS 的"节点-连线"标志呼应应用图标 */
+  .logo::before, .logo::after {
+    content: ""; position: absolute; background: #e4e6eb; border-radius: 50%;
+  }
+  .logo::before { width: 14px; height: 14px; left: 18px; top: 22px; box-shadow: 44px 26px 0 #fff, 8px 44px 0 #e4e6eb, 58px 6px 0 #e4e6eb; }
+  .logo::after { width: 70px; height: 4px; left: 9px; top: 44px; background: #7c9eff; transform: rotate(30deg); border-radius: 2px; }
+  h1 { font-size: 40px; margin: 0 0 8px; letter-spacing: -0.5px; }
+  .sub { color: var(--text-2); font-size: 16px; max-width: 720px; margin: 0 auto; }
+  .cta { margin-top: 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 10px 20px; border-radius: 8px; text-decoration: none;
+    font-size: 14px; border: 1px solid var(--border); color: var(--text);
+  }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn.primary:hover { background: var(--primary-hover); }
+  .btn:hover { border-color: var(--primary); }
+  section { padding: 40px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 22px; margin: 0 0 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 15px; }
+  .card p { margin: 0; color: var(--text-2); font-size: 13.5px; }
+  .shot { width: 100%; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+  pre {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; overflow-x: auto; font-size: 13px;
+  }
+  code { font-family: Consolas, "Cascadia Mono", monospace; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; margin: 0 6px 6px 0; }
+  .tag.green { background: rgba(74, 222, 128, 0.14); color: var(--success); }
+  .tag.blue { background: rgba(124, 158, 255, 0.16); color: var(--accent); }
+  .tag.amber { background: rgba(251, 191, 36, 0.14); color: var(--warning); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+  th { background: var(--bg-2); }
+  a { color: var(--accent); }
+  footer { padding: 32px 0 48px; color: var(--text-2); font-size: 13px; text-align: center; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="logo" aria-hidden="true"></div>
+    <h1>CodeAtlas<span style="color:var(--text-2);font-size:20px;">（码图）</span></h1>
+    <p class="sub">
+      为开发者绘制一张可交互的代码地图：<strong>目录是地形，调用关系是道路，阅读路线是导航，AI 上下文包是给智能助手的旅行指南。</strong>
+    </p>
+    <p class="sub" style="margin-top:10px;">
+      <span class="tag green">完全本地运行</span>
+      <span class="tag green">零 AI 调用</span>
+      <span class="tag blue">免费开源</span>
+      <span class="tag blue">约 3 MB 安装包</span>
+      <span class="tag amber">支持完全断网内网环境</span>
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/Linu-code/codeatlas/releases">下载 Windows 版</a>
+      <a class="btn" href="https://github.com/Linu-code/codeatlas">查看源码</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>它做什么</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>📁 文件树导航</h3>
+        <p>折叠、过滤，并按规则自动标注目录用途（<code>src/</code> → 源代码、<code>.github/</code> → CI 配置…）。</p>
+      </div>
+      <div class="card">
+        <h3>📊 调用关系图</h3>
+        <p>基于 tree-sitter 真实语法树构建函数级调用图，可导出 SVG / PNG，也可复制 Mermaid 代码。</p>
+      </div>
+      <div class="card">
+        <h3>🧭 跨文件跳转</h3>
+        <p><code>Ctrl/Cmd + 单击</code> 或 <code>F12</code> 转到定义，一键列出全部引用位置（文件:行号）。</p>
+      </div>
+      <div class="card">
+        <h3>📈 代码度量</h3>
+        <p>圈复杂度、认知复杂度、SLOC 与项目健康评分，单次 AST 遍历算出全部指标。</p>
+      </div>
+      <div class="card">
+        <h3>🎒 AI 上下文包</h3>
+        <p>PageRank 排序 + token 预算裁剪，一键生成给 Cursor / Trae / WorkBuddy 的项目摘要。</p>
+      </div>
+      <div class="card">
+        <h3>🔍 全局搜索</h3>
+        <p>Web Worker 中执行正则搜索，10 秒超时自动终止，搜索再大也不卡界面。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>界面预览</h2>
+    <img class="shot" src="screenshots/main.png" alt="CodeAtlas 主界面" />
+    <div class="grid">
+      <img class="shot" src="screenshots/callgraph.png" alt="调用关系图" />
+      <img class="shot" src="screenshots/metrics.png" alt="代码度量" />
+    </div>
+    <img class="shot" src="screenshots/context-pack.png" alt="AI 上下文包" />
+  </section>
+
+  <section>
+    <h2>三种输入方式</h2>
+    <table>
+      <tr><th>输入</th><th>用法</th></tr>
+      <tr><td>GitHub 网址</td><td><code>https://github.com/facebook/react</code>（也支持 <code>/tree/branch/subdir</code>）</td></tr>
+      <tr><td>仓库简写</td><td><code>facebook/react</code></td></tr>
+      <tr><td>仓库名搜索</td><td>输入 <code>react</code> 回车，下拉前 10 条结果，方向键选择</td></tr>
+      <tr><td>本地 ZIP</td><td>点击「打开本地 ZIP」，或直接把 <code>.zip</code> 拖入窗口（每个 ZIP 一个独立窗口）</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>安装</h2>
+    <p style="color:var(--text-2);font-size:14px;">
+      下载 <a href="https://github.com/Linu-code/codeatlas/releases">Releases</a> 中的安装包双击安装即可，
+      无需安装 Node.js 或 Rust。Windows 10（1803+）/ 11 已内置 WebView2 运行时。
+    </p>
+  </section>
+
+  <section>
+    <h2>从源码构建</h2>
+<pre><code>git clone https://github.com/Linu-code/codeatlas.git
+cd codeatlas
+npm install
+npm run dev            # 浏览器模式
+npm run tauri dev      # 桌面模式（需 Rust 工具链）
+npm run build:exe      # 打包 exe（产物落到仓库根目录）</code></pre>
+    <p style="color:var(--text-2);font-size:13.5px;">
+      构建 exe 需要一次性安装 Rust（MSVC 工具链）与 Visual Studio C++ 生成工具，详见
+      <a href="https://github.com/Linu-code/codeatlas#方式三打包成-exe">README</a>。
+    </p>
+  </section>
+
+  <section>
+    <h2>硬性约束</h2>
+    <div class="grid">
+      <div class="card"><h3>🚫 零 AI</h3><p>不调用任何 LLM / AI API / 本地模型；解读能力全部来自确定性静态分析与模板。</p></div>
+      <div class="card"><h3>🔒 零上传</h3><p>不收集数据、不上传文件；ZIP 解压前做路径穿越校验（拒绝 <code>../</code>、绝对路径、UNC）。</p></div>
+      <div class="card"><h3>🌐 网络白名单</h3><p>默认只访问 <code>api.github.com</code> 与 <code>raw.githubusercontent.com</code>，CSP 与代码双层强制。</p></div>
+      <div class="card"><h3>🔌 离线可用</h3><p>上传本地 ZIP 后全功能可用，适合完全断网的内网环境。</p></div>
+    </div>
+  </section>
+
+  <footer>
+    MIT License · CodeAtlas contributors ·
+    <a href="PLAN.md">项目计划</a>
+  </footer>
+
+</div>
+</body>
+</html>

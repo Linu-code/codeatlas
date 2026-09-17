@@ -1,0 +1,36 @@
+# 统一按 LF 存储，检出时由 Git 自动处理平台换行
+* text=auto eol=lf
+
+# Windows 脚本保持 CRLF（Windows PowerShell 5.1 兼容性最稳）
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制资源（禁止换行转换与 diff）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.wasm binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+
+# 构建产物与打包文件
+*.exe binary
+*.dll binary
+*.lib binary
+*.pdb binary
+*.rlib binary
+*.rmeta binary
+*.zip binary
+
+# 锁文件与生成物：不参与 diff、不计入语言统计
+package-lock.json -diff linguist-generated
+src-tauri/Cargo.lock -diff linguist-generated
+dist/** linguist-generated linguist-vendored
+docs/screenshots/*.png -diff linguist-generated
+
+# 文档站与截图按二进制处理，避免 diff 噪声
+docs/screenshots/*.png binary

@@ -1,0 +1,302 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+ * CodeAtlas 主题变量
+ * 四套主题：light / dark / atlas-light / atlas-dark
+ * 由 src/theme/themes.ts 写入 <html data-theme="...">
+ * 变量前缀分三类：界面（--c-*）、语法高亮（--syn-*）、尺寸（--ui-*）
+ * ============================================================ */
+
+/* ---------- 通用浅色 ---------- */
+:root[data-theme='light'] {
+  --c-bg: #ffffff;
+  --c-bg-2: #f3f4f6;
+  --c-bg-3: #e9ecef;
+  --c-border: #e1e4e8;
+  --c-text: #1f2328;
+  --c-text-2: #6b7280;
+  --c-primary: #4a6cf7;
+  --c-primary-hover: #3b5bdb;
+  --c-success: #16a34a;
+  --c-warning: #b45309;
+  --c-error: #dc2626;
+  --c-selection: #dbeafe;
+
+  --syn-keyword: #0000ff;
+  --syn-function: #795e26;
+  --syn-string: #a31515;
+  --syn-comment: #008000;
+  --syn-number: #098658;
+  --syn-type: #267f99;
+  --syn-tag: #800000;
+  --syn-attr: #e50000;
+  --syn-punct: #383a42;
+}
+
+/* ---------- 通用深色 ---------- */
+:root[data-theme='dark'] {
+  --c-bg: #1e1e1e;
+  --c-bg-2: #252526;
+  --c-bg-3: #2d2d30;
+  --c-border: #3c3c3c;
+  --c-text: #d4d4d4;
+  --c-text-2: #8c8c8c;
+  --c-primary: #4a6cf7;
+  --c-primary-hover: #5d7bff;
+  --c-success: #4ade80;
+  --c-warning: #fbbf24;
+  --c-error: #f87171;
+  --c-selection: #264f78;
+
+  --syn-keyword: #569cd6;
+  --syn-function: #dcdcaa;
+  --syn-string: #ce9178;
+  --syn-comment: #6a9955;
+  --syn-number: #b5cea8;
+  --syn-type: #4ec9b0;
+  --syn-tag: #569cd6;
+  --syn-attr: #9cdcfe;
+  --syn-punct: #d4d4d4;
+}
+
+/* ---------- CodeAtlas 专属：深色（Atlas Blue，提示词完整色板） ---------- */
+:root[data-theme='atlas-dark'] {
+  --c-bg: #1b1d23;          /* 暖灰黑，不用纯黑 */
+  --c-bg-2: #23262e;        /* 次级背景 */
+  --c-bg-3: #2a2e38;
+  --c-border: #2e323c;
+  --c-text: #e4e6eb;        /* 不用纯白，降低对比疲劳 */
+  --c-text-2: #9ba1ac;
+  --c-primary: #4a6cf7;     /* 柔和靛蓝 */
+  --c-primary-hover: #5d7bff;
+  --c-accent: #7c9eff;      /* 强调色 */
+  --c-success: #4ade80;
+  --c-warning: #fbbf24;
+  --c-error: #f87171;
+  --c-selection: #2c3a6b;
+
+  /* 语法高亮：低饱和、长时阅读友好，均在 #1b1d23 上达到 AA 对比度 */
+  --syn-keyword: #7c9eff;
+  --syn-function: #82aaff;
+  --syn-string: #8bcb8b;
+  --syn-comment: #7e8794;
+  --syn-number: #f0a868;
+  --syn-type: #6fd6c8;
+  --syn-tag: #f08a8a;
+  --syn-attr: #e5c07b;
+  --syn-punct: #9ba1ac;
+}
+
+/* ---------- CodeAtlas 专属：浅色 ---------- */
+:root[data-theme='atlas-light'] {
+  --c-bg: #f8f9fb;          /* 不用纯白 */
+  --c-bg-2: #ffffff;
+  --c-bg-3: #eef1f6;
+  --c-border: #e3e6ec;
+  --c-text: #2c2f36;        /* 不用纯黑 */
+  --c-text-2: #6b7280;
+  --c-primary: #4a6cf7;
+  --c-primary-hover: #3b5bdb;
+  --c-accent: #7c9eff;
+  --c-success: #16a34a;
+  --c-warning: #b45309;
+  --c-error: #dc2626;
+  --c-selection: #dbe3ff;
+
+  --syn-keyword: #3b5bdb;
+  --syn-function: #2f6feb;
+  --syn-string: #2e7d32;
+  --syn-comment: #6b7280;
+  --syn-number: #b45309;
+  --syn-type: #0f766e;
+  --syn-tag: #b91c1c;
+  --syn-attr: #8a5a00;
+  --syn-punct: #4b5563;
+}
+
+/* ---------- 基础样式 ---------- */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-size: 13px;
+  overflow: hidden; /* VSCode 风格：面板内部各自滚动 */
+}
+
+/* 滚动条跟随主题 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c-text-2);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: var(--c-selection);
+}
+
+/* 行内加载指示器（顶栏"搜索中..."与全局 loading 共用） */
+.ca-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--c-border);
+  border-top-color: var(--c-primary);
+  border-radius: 50%;
+  animation: ca-spin 0.7s linear infinite;
+  vertical-align: -2px;
+}
+@keyframes ca-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* RTL 预留：所有间距均使用 Tailwind 逻辑属性类（ms/me/ps/pe 系列），
+ * 图标方向性元素统一加 .dir-flip，RTL 下自动镜像。 */
+[dir='rtl'] .dir-flip {
+  transform: scaleX(-1);
+}
+
+/* ============================================================
+ * 代码视图：行号槽 + 代码区（滚动同步由 JS 处理）
+ * ============================================================ */
+.code-scroll {
+  font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  font-size: 12.5px;
+  line-height: 20px;
+  tab-size: 2;
+}
+.code-gutter {
+  font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  font-size: 12.5px;
+  line-height: 20px;
+  color: var(--c-text-2);
+  user-select: none;
+  text-align: right;
+}
+
+/* ============================================================
+ * Markdown 渲染样式（README 视图）
+ * ============================================================ */
+.md-body {
+  line-height: 1.75;
+  word-wrap: break-word;
+}
+.md-body h1,
+.md-body h2 {
+  border-bottom: 1px solid var(--c-border);
+  padding-bottom: 8px;
+  margin-top: 1.6em;
+}
+.md-body h1 { font-size: 1.9em; }
+.md-body h2 { font-size: 1.5em; }
+.md-body h3 { font-size: 1.25em; }
+.md-body a { color: var(--c-primary); text-decoration: none; }
+.md-body a:hover { text-decoration: underline; }
+.md-body img { max-width: 100%; }
+.md-body code {
+  background: var(--c-bg-3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: Consolas, 'Cascadia Mono', monospace;
+  font-size: 0.9em;
+}
+.md-body pre {
+  background: var(--c-bg-2);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: 14px;
+  overflow-x: auto;
+}
+.md-body pre code {
+  background: none;
+  padding: 0;
+}
+.md-body blockquote {
+  margin: 0;
+  padding: 0 16px;
+  color: var(--c-text-2);
+  border-inline-start: 4px solid var(--c-border); /* 逻辑属性，RTL 自动镜像 */
+}
+.md-body table {
+  border-collapse: collapse;
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid var(--c-border);
+  padding: 6px 12px;
+}
+.md-body th { background: var(--c-bg-2); }
+.md-body hr {
+  border: none;
+  border-top: 1px solid var(--c-border);
+}
+
+/* ============================================================
+ * Prism 语法高亮：token 颜色全部走主题变量
+ * ============================================================ */
+code[class*='language-'],
+pre[class*='language-'] {
+  color: var(--c-text);
+  background: none;
+  text-shadow: none;
+}
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata { color: var(--syn-comment); font-style: italic; }
+.token.punctuation { color: var(--syn-punct); }
+.token.namespace { opacity: 0.8; }
+.token.property,
+.token.tag,
+.token.constant,
+.token.symbol,
+.token.deleted { color: var(--syn-tag); }
+.token.boolean,
+.token.number { color: var(--syn-number); }
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted { color: var(--syn-string); }
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string { color: var(--syn-operator, var(--syn-punct)); }
+.token.atrule,
+.token.attr-value,
+.token.keyword { color: var(--syn-keyword); }
+.token.function,
+.token.class-name { color: var(--syn-function); }
+.token.regex,
+.token.important,
+.token.variable { color: var(--syn-attr); }
+.token.important,
+.token.bold { font-weight: 600; }

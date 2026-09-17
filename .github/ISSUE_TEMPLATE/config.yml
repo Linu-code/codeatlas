@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 报告安全问题（私密）
+    url: https://github.com/Linu-code/codeatlas/security/advisories/new
+    about: 请勿用公开 Issue 报告漏洞。参见 SECURITY.md。
+  - name: 💬 使用问题与讨论
+    url: https://github.com/Linu-code/codeatlas/discussions
+    about: 安装、使用、打包等疑问请在此提问，不要开 Issue。
+  - name: 📖 先读文档
+    url: https://github.com/Linu-code/codeatlas#readme
+    about: README 的「快速开始」「已知限制」「硬性约束」通常能直接解答。
