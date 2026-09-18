@@ -63,7 +63,7 @@ jobs:
       # 仅 tag 触发才发布；workflow_dispatch 在分支上手动跑时只做构建验证
       - name: 发布 Release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           # tag 本身即发布意图，直接发布为正式版本；
           # 形如 v1.0.0-beta.1 的预发布 tag 会自动标记为 prerelease
