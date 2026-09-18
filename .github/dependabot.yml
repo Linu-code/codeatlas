@@ -33,6 +33,12 @@ updates:
       # 升级步骤见 README「版本锁定说明」；此处禁止 Dependabot 自动升级，避免 CI 变红。
       - dependency-name: web-tree-sitter
       - dependency-name: tree-sitter-wasms
+      # 前端框架大版本升级（React 18 → 19 等）属破坏性变更，需专项适配，
+      # 禁止自动升级，避免持续产生 CI 失败的 PR。详见 docs/PLAN-2.0.md。
+      - dependency-name: react
+        update-types: ['version-update:semver-major']
+      - dependency-name: react-dom
+        update-types: ['version-update:semver-major']
 
   # Rust / Tauri 依赖
   - package-ecosystem: cargo

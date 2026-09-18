@@ -11,6 +11,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# 最小权限：CI 只读取仓库内容
+permissions:
+  contents: read
+
 jobs:
   test:
     name: 类型检查 · 单测 · 构建（${{ matrix.os }}）

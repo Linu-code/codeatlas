@@ -1,0 +1,43 @@
+name: Deploy Docs
+
+# 文档站跟随 main 部署（与 tag 发布解耦）：
+#  - 只在其依赖变化时触发，避免无关提交产生空跑
+#  - 走分支部署，天然不受 github-pages environment 的 tag 保护规则限制
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# GitHub Pages 官方要求的最小权限组合
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 与 Pages 的部署队列保持一致；不取消进行中的部署，避免留下半成品
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 部署文档站
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

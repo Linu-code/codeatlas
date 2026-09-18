@@ -1,19 +1,24 @@
 name: Release（Windows exe）
 
-# 打 tag（如 v1.0.0）时自动构建 Windows 安装包并发布到 GitHub Release
+# 打 tag（如 v1.0.0）时构建 Windows 安装包并发布 GitHub Release。
+# 文档站部署已拆分到 pages.yml（跟随 main），避免 tag 触发时被
+# github-pages environment 的 "Deployment branches and tags" 规则拒绝。
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
 
+# 最小权限：仅发布 Release 的 job 需要写权限（见 job 级 permissions）
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-windows:
     name: 构建 Windows 安装包
     runs-on: windows-latest
+    permissions:
+      contents: write # 创建/更新 Release 必需
 
     steps:
       - uses: actions/checkout@v4
@@ -55,10 +60,15 @@ jobs:
             ForEach-Object { "$($_.Hash)  $($exe.Name)" } | Out-File -FilePath SHA256SUMS.txt -Encoding utf8
           Get-Content SHA256SUMS.txt
 
+      # 仅 tag 触发才发布；workflow_dispatch 在分支上手动跑时只做构建验证
       - name: 发布 Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          # tag 本身即发布意图，直接发布为正式版本；
+          # 形如 v1.0.0-beta.1 的预发布 tag 会自动标记为 prerelease
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
@@ -66,26 +76,3 @@ jobs:
             SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  deploy-docs:
-    name: 部署文档站到 GitHub Pages
-    runs-on: ubuntu-latest
-    needs: build-windows
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
