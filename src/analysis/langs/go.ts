@@ -13,7 +13,6 @@
 import type Parser from 'web-tree-sitter';
 import { fieldText, type LangHandler, type SymbolKind } from './types';
 
-const FUNC_NODES = new Set(['function_declaration', 'method_declaration']);
 const TYPE_DECL_NODES = new Set(['type_declaration']);
 const CLASS_TYPE_NODES = new Set(['struct_type', 'interface_type']);
 const SCOPE_NODES = new Set(['function_declaration', 'method_declaration', 'func_literal']);

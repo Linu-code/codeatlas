@@ -9,7 +9,6 @@
  *   · 导入用 use_declaration，路径在 argument 字段
  */
 
-import type Parser from 'web-tree-sitter';
 import { fieldText, hasAncestor, type LangHandler, type SymbolKind } from './types';
 
 const FUNC_NODES = new Set(['function_item']);
