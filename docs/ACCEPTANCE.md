@@ -26,14 +26,38 @@
 | 18 | 上下文文件包含项目概览、文件树、核心符号签名、调用关系摘要 | E2E 断言四个章节标题 + `src/util.ts:<行号>` 存在；实际输出见 E2E 报告 | ✅ |
 | 19 | 该文件能被 WorkBuddy/Trae 等工具直接读取并理解项目结构 | 输出为纯 Markdown（人机双读）+ 结构化 JSON（`codeatlas-context.json`）；E2E 断言 JSON 含 `generator/repo/symbols/calls` 字段 | ✅ |
 
+## 2.0 增补验收（N1 / N2 / N3）
+
+2.0 的三个里程碑已完成（`[Unreleased]`，尚未发布）。验收项与验证方式如下：
+
+| 里程碑 | 验收标准 | 验证方式 | 结果 |
+|---|---|---|---|
+| **N1** 多语言与规模 | 12 个语言族的定义 / 跳转 / 调用图 / 度量可用 | 单测 `tests/unit/langs.test.ts`（41 例，含 9 种语言真实 AST 断言）；`npm run check:tree-sitter` 逐一解析 14 个语法包 + 共存复解析 | ✅ 14/14 |
+| N1 规模提升 | 2000 文件 / 1 MB / 调用图 120 节点 | 📄 `src/analysis/limits.ts`（上限集中定义） | ✅ |
+| N1 语法包适配 | 不可用语言必须有实测结论，不能静默失败 | 📄 `scripts/check-tree-sitter.cjs` 的 `EXCLUDED`（Lua / Bash / Scala / Dart / Elm / QL 及原因） | ✅ |
+| **N2** 阅读路线 | 顺序确定可复现，入口优先 | 单测 `tests/unit/readingPath.test.ts`（9 例：角色判定、排序、编号、目录分组、确定性）；E2E `阅读路线：自动排序 + 入口标注 + 点击跳转` | ✅ |
+| N2 命令面板 / 符号搜索 | `Ctrl+K` / `Ctrl+T` 可用且能跳转 | E2E `navigation-panels.spec.ts` 前 3 例；模糊匹配单测 `fuzzy.test.ts`（11 例） | ✅ |
+| N2 大纲视图 | 类 → 方法嵌套，点击跳转 | 单测 `outline.test.ts`（6 例）；E2E `大纲：当前文件的符号树` | ✅ |
+| **N3** 模块依赖图 | 目录级依赖边正确、可渲染 | 单测 `moduleGraph.test.ts`（8 例）；E2E `架构视图：模块依赖图` 断言 SVG 渲染 | ✅ |
+| N3 循环依赖 | 全部环被发现，长链不爆栈 | 单测 `cycles.test.ts`（12 例，含 5000 节点链）；E2E 断言「未发现循环依赖 ✓」 | ✅ |
+| N3 类图 | 继承 / 实现分边，歧义不连线 | 单测 `classGraph.test.ts`（18 例，含 9 种语言真实 AST）；E2E `类图（继承/实现）` 断言渲染 | ✅ |
+| N3 分层视图 | 按目录用途聚类 | E2E 断言 `[data-layer="source"]` 行包含 `src` | ✅ |
+| 导入解析正确性 | 跨语言解析不产生错误依赖边 | 单测 `importResolver.test.ts`（14 例：相对 / 点号 / 斜杠 / 别名 / 歧义返回 null / 自环防护） | ✅ |
+
+> 说明：C# / C++ 的语法树不区分类与接口，Kotlin 靠 `Base()` 括号区分，Ruby 的 `include` 不算继承 ——
+> 这些差异都写在对应 LangHandler 的注释里，面板统计行也会如实标注（不给"看起来很对"的假信息）。
+
 ## 复现命令
 
 ```bash
-# 单元测试（12 个文件 / 115 个用例，实际数量以 npm test 输出为准）
+# 单元测试（20 个文件 / 234 个用例，实际数量以 npm test 输出为准）
 npm test
 
-# E2E（4 个 spec / 13 个用例，含截图生成到 docs/screenshots/）
+# E2E（5 个 spec / 20 个用例，含截图生成到 docs/screenshots/）
 npm run build && npm run e2e
+
+# tree-sitter 语法包自检（14 个语法包逐一解析 + 共存复解析）
+npm run check:tree-sitter
 
 # 打包 Windows exe（绿色版 + NSIS 安装包，产物复制到仓库根目录）
 npm run build:exe

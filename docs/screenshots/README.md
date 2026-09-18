@@ -17,5 +17,11 @@ npm run e2e       # 运行 E2E，截图自动写入本目录
 | `metrics.png` | 代码度量面板（健康评分 + 复杂度表格） |
 | `search.png` | 全局正则搜索结果 |
 | `context-pack.png` | AI 上下文包对话框 |
+| `command-palette.png` | 命令面板（`Ctrl/Cmd+K` 模糊搜索） |
+| `reading-path.png` | 建议阅读路线面板（入口 → 枢纽 → 中间层 → 末端） |
+| `architecture-modules.png` | 架构视图 · 模块依赖图（Mermaid） |
+| `architecture-layers.png` | 架构视图 · 按用途分层 |
+| `architecture-classes.png` | 架构视图 · 类图（继承 / 实现） |
 
-截图逻辑见 `tests/e2e/helpers.ts` 的 `saveScreenshot()`。
+截图逻辑见 `tests/e2e/helpers.ts` 的 `saveScreenshot()`；用例见
+`tests/e2e/analysis-panels.spec.ts`、`i18n-theme.spec.ts`、`navigation-panels.spec.ts`、`zip-offline.spec.ts`。
