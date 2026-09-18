@@ -15,8 +15,8 @@ const require = createRequire(import.meta.url);
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(projectRoot, 'public', 'grammars');
 
-/** 第一期支持的语法（对齐提示词：JS/TS/Python） */
-const GRAMMARS = ['javascript', 'typescript', 'tsx', 'python'];
+/** 支持分析的语法包（需与 src/analysis/parser.ts 的 LangId 保持一致） */
+const GRAMMARS = ['javascript', 'typescript', 'tsx', 'python', 'go', 'rust'];
 
 async function main() {
   await mkdir(outDir, { recursive: true });

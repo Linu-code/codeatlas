@@ -80,6 +80,49 @@ const PY_COMMENT = new Set(['comment']);
 const PY_NESTING = new Set(['if_statement', 'for_statement', 'while_statement', 'try_statement', 'with_statement']);
 const PY_JUMP = new Set(['break_statement', 'continue_statement']);
 
+// ---------- Go ----------
+/** Go 无三元运算符；判定点主要来自分支与 switch/select */
+const GO_DECISION = new Set([
+  'if_statement',
+  'for_statement',
+  'expression_switch_statement',
+  'type_switch_statement',
+  'select_statement',
+  'expression_case',
+  'type_case',
+  'communication_case',
+]);
+const GO_LOGICAL = new Set(['&&', '||']);
+const GO_COMMENT = new Set(['comment']);
+const GO_NESTING = new Set([
+  'if_statement',
+  'for_statement',
+  'expression_switch_statement',
+  'type_switch_statement',
+  'select_statement',
+]);
+const GO_JUMP = new Set(['break_statement', 'continue_statement', 'goto_statement']);
+
+// ---------- Rust ----------
+/** Rust 的控制流是表达式（if_expression 等），match 的每个分支为 match_arm */
+const RS_DECISION = new Set([
+  'if_expression',
+  'while_expression',
+  'loop_expression',
+  'for_expression',
+  'match_arm',
+]);
+const RS_LOGICAL = new Set(['&&', '||']);
+const RS_COMMENT = new Set(['line_comment', 'block_comment']);
+const RS_NESTING = new Set([
+  'if_expression',
+  'while_expression',
+  'loop_expression',
+  'for_expression',
+  'match_expression',
+]);
+const RS_JUMP = new Set(['break_expression', 'continue_expression']);
+
 interface LangRules {
   decision: Set<string>;
   logical: Set<string>;
@@ -101,6 +144,32 @@ function rulesFor(language: LangId): LangRules {
       functionNodes: new Set(['function_definition']),
       // Python 里 and/or 是 boolean_operator 的 operator 字段
       isLogicalOperator: (node) => node.type === 'boolean_operator' && PY_LOGICAL.has(node.childForFieldName('operator')?.text ?? ''),
+    };
+  }
+  if (language === 'go') {
+    return {
+      decision: GO_DECISION,
+      logical: GO_LOGICAL,
+      comment: GO_COMMENT,
+      nesting: GO_NESTING,
+      jump: GO_JUMP,
+      functionNodes: new Set(['function_declaration', 'method_declaration', 'func_literal']),
+      // Go 的 && / || 同样是 binary_expression 的 operator
+      isLogicalOperator: (node) =>
+        node.type === 'binary_expression' && GO_LOGICAL.has(node.childForFieldName('operator')?.text ?? ''),
+    };
+  }
+  if (language === 'rust') {
+    return {
+      decision: RS_DECISION,
+      logical: RS_LOGICAL,
+      comment: RS_COMMENT,
+      nesting: RS_NESTING,
+      jump: RS_JUMP,
+      functionNodes: new Set(['function_item', 'closure_expression']),
+      // Rust 的 && / || 同样是 binary_expression 的 operator
+      isLogicalOperator: (node) =>
+        node.type === 'binary_expression' && RS_LOGICAL.has(node.childForFieldName('operator')?.text ?? ''),
     };
   }
   return {
