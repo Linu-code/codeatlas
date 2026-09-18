@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **多语言支持（第一阶段）**：新增 **Go** 与 **Rust** 的 AST 分析 —— 调用图、跨文件跳转、代码度量与 AI 上下文包现覆盖 6 种语言（JS / TS / TSX / Python / Go / Rust）。
+  - 语言规则按「每种语言一个文件」组织：`src/analysis/langs/{javascript,python,go,rust}.ts`，各自实现统一的 `LangHandler` 契约；遍历逻辑（`symbols.ts`）不含语言特判，后续新增语言不必改动它。
+  - 导出规则按语言语义实现：JS 看 `export`、Python 看顶层且非 `_` 前缀、Go 看首字母大写、Rust 看 `pub`。
+
 ### 变更（工程 / CI）
 
 - **发布流程解耦**：文档站部署拆为独立 `pages.yml`（跟随 `main` 部署），不再挂在 tag 发布上

@@ -129,7 +129,7 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 |------|------|------|
 | 桌面框架 | **Tauri 2**（Rust + 系统 WebView2） | 体积约 3 MB，冷启动快，不用 Electron |
 | 前端 | React 18 + TypeScript + Vite + Tailwind CSS | 类型安全；分析层全为纯函数便于单测 |
-| AST 解析 | **web-tree-sitter 0.22** + tree-sitter-wasms（WASM） | 浏览器内真实语法树，支持 JS/TS/TSX/Python |
+| AST 解析 | **web-tree-sitter 0.22** + tree-sitter-wasms（WASM） | 浏览器内真实语法树，支持 JS/TS/TSX/Python/Go/Rust |
 | i18n | i18next + react-i18next | 命名空间组织，中/英/日，RTL 已预留 |
 | 代码高亮 | Prism（语言包按需动态加载） | 首屏只带 4 个核心语法，其余用时再拉 |
 | 图表 | Mermaid（动态加载） | 调用图渲染 + SVG/PNG 导出 |
@@ -208,7 +208,7 @@ npm run check:tree-sitter   # tree-sitter 运行时与语法包兼容性自检
 
 ## 已知限制
 
-- AST 解析第一期支持 **JavaScript / TypeScript / TSX / Python**；其它语言可正常浏览与高亮，但不参与调用图/跳转/度量。语法包加载失败时会自动降级并提示，不影响其它功能。
+- AST 解析支持 **JavaScript / TypeScript / TSX / Python / Go / Rust**；其它语言可正常浏览与高亮，但不参与调用图/跳转/度量。语法包加载失败时会自动降级并提示，不影响其它功能。
 - 单次分析上限：400 个文件、单文件 256 KB（超出部分跳过，保证中型项目流畅）。
 - 调用图超过 60 个节点时按连接度截断为骨架图，界面会明确提示。
 - GitHub 匿名 API 限流 60 次/小时；文件内容走 `raw.githubusercontent.com`（不计入 API 配额），文件树失败时若无法回退缓存会提示填入 Token。

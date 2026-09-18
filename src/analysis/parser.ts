@@ -23,7 +23,13 @@ type ParserInstance = InstanceType<ParserModule>;
 type LanguageInstance = ParserType.Language;
 type SyntaxNode = ParserType.SyntaxNode;
 
-export type LangId = 'javascript' | 'typescript' | 'tsx' | 'python';
+export type LangId =
+  | 'javascript'
+  | 'typescript'
+  | 'tsx'
+  | 'python'
+  | 'go'
+  | 'rust';
 
 /** 支持的扩展名 → 语言 */
 export const EXT_TO_LANG: Record<string, LangId> = {
@@ -34,6 +40,8 @@ export const EXT_TO_LANG: Record<string, LangId> = {
   ts: 'typescript',
   tsx: 'tsx',
   py: 'python',
+  go: 'go',
+  rs: 'rust',
 };
 
 export function langOfPath(path: string): LangId | null {
