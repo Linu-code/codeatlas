@@ -81,7 +81,7 @@ export const en = {
     callGraph: 'Call graph',
     analyze: 'Build call graph',
     analyzing: 'Analyzing...',
-    noGraph: 'No analyzable JS/TS/Python files found',
+    noGraph: 'No analyzable files found (supports JS/TS, Python, Go, Rust, Java, C/C++, C#, PHP, Kotlin, Swift, Ruby)',
     graphStats: '{{nodes}} functions · {{edges}} calls · parsed {{parsed}}/{{total}} files',
     graphTruncated: 'Too many nodes — kept the {{kept}}/{{total}} most connected functions',
     parseFailedCount: '{{count}} files failed to parse',

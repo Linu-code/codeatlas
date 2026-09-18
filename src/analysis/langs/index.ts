@@ -11,6 +11,14 @@ import { javascriptHandler } from './javascript';
 import { pythonHandler } from './python';
 import { goHandler } from './go';
 import { rustHandler } from './rust';
+import { javaHandler } from './java';
+import { cHandler } from './c';
+import { cppHandler } from './cpp';
+import { csharpHandler } from './csharp';
+import { phpHandler } from './php';
+import { kotlinHandler } from './kotlin';
+import { swiftHandler } from './swift';
+import { rubyHandler } from './ruby';
 
 const REGISTRY: Record<LangId, LangHandler> = {
   javascript: javascriptHandler,
@@ -19,6 +27,14 @@ const REGISTRY: Record<LangId, LangHandler> = {
   python: pythonHandler,
   go: goHandler,
   rust: rustHandler,
+  java: javaHandler,
+  c: cHandler,
+  cpp: cppHandler,
+  csharp: csharpHandler,
+  php: phpHandler,
+  kotlin: kotlinHandler,
+  swift: swiftHandler,
+  ruby: rubyHandler,
 };
 
 export function handlerFor(lang: LangId): LangHandler {

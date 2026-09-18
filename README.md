@@ -129,7 +129,7 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 |------|------|------|
 | 桌面框架 | **Tauri 2**（Rust + 系统 WebView2） | 体积约 3 MB，冷启动快，不用 Electron |
 | 前端 | React 18 + TypeScript + Vite + Tailwind CSS | 类型安全；分析层全为纯函数便于单测 |
-| AST 解析 | **web-tree-sitter 0.22** + tree-sitter-wasms（WASM） | 浏览器内真实语法树，支持 JS/TS/TSX/Python/Go/Rust |
+| AST 解析 | **web-tree-sitter 0.22** + tree-sitter-wasms（WASM） | 浏览器内真实语法树，覆盖 12 种主流语言 |
 | i18n | i18next + react-i18next | 命名空间组织，中/英/日，RTL 已预留 |
 | 代码高亮 | Prism（语言包按需动态加载） | 首屏只带 4 个核心语法，其余用时再拉 |
 | 图表 | Mermaid（动态加载） | 调用图渲染 + SVG/PNG 导出 |
@@ -142,7 +142,7 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 
 ## 硬性约束（设计红线）
 
-- 🚫 **零 AI**：不调用任何 LLM / AI API / 本地模型，"智能解读"全部来自确定性静态分析与模板
+- 🚫 **零云端 AI**：不调用任何在线 LLM / AI API，"智能解读"全部来自确定性静态分析与模板（本地模型支持属于 2.2 规划，且默认关闭）
 - 🔒 **零上传**：不收集数据、不上传文件，ZIP 解压前校验路径（拒绝 `../`、绝对路径、UNC、Windows 保留名），防路径穿越
 - 🌐 **网络白名单**：默认只访问 `api.github.com` 与 `raw.githubusercontent.com`（CSP 与代码双层强制）；jsDelivr 兜底默认**关闭**，需用户在设置中显式开启
 - 🔌 **离线可用**：上传本地 ZIP 后全部功能可用，适合完全断网的内网环境
@@ -155,10 +155,12 @@ codeatlas/
 ├── src/
 │   ├── analysis/          # 分析层（纯函数，Vitest 全覆盖）
 │   │   ├── parser.ts      #   tree-sitter 解析器池（懒加载 + 降级）
-│   │   ├── symbols.ts     #   单次 AST 遍历：定义 / 调用 / 引用 / 导入
+│   │   ├── langs/         #   语言规则：每语言一文件（js / python / go / rust / java / c / cpp / csharp / php / kotlin / swift / ruby）
+│   │   ├── symbols.ts     #   单次 AST 遍历：定义 / 调用 / 引用 / 导入（零语言特判，全部下沉到 langs/）
 │   │   ├── callgraph.ts   #   调用图（去噪、局部优先解析、截断）
 │   │   ├── scopeGraph.ts  #   跨文件符号索引（转到定义 / 查找引用）
-│   │   ├── metrics.ts     #   圈复杂度 / 认知复杂度 / SLOC / 健康评分
+│   │   ├── metrics.ts     #   圈复杂度 / 认知复杂度 / SLOC / 健康评分（各语言节点集合集中在此）
+│   │   ├── limits.ts      #   规模上限（文件数 / 单文件体积 / 图节点数）
 │   │   ├── pagerank.ts    #   文件依赖图 PageRank
 │   │   ├── contextPack.ts #   AI 上下文包（PageRank + token 二分裁剪）
 │   │   ├── directories.ts #   目录用途标注规则表
@@ -208,8 +210,9 @@ npm run check:tree-sitter   # tree-sitter 运行时与语法包兼容性自检
 
 ## 已知限制
 
-- AST 解析支持 **JavaScript / TypeScript / TSX / Python / Go / Rust**；其它语言可正常浏览与高亮，但不参与调用图/跳转/度量。语法包加载失败时会自动降级并提示，不影响其它功能。
-- 单次分析上限：400 个文件、单文件 256 KB（超出部分跳过，保证中型项目流畅）。
+- AST 解析支持 **JavaScript / TypeScript / TSX / Python / Go / Rust / Java / C / C++ / C# / PHP / Kotlin / Swift / Ruby**；其它语言可正常浏览与高亮，但不参与调用图/跳转/度量。语法包加载失败时会自动降级并提示，不影响其它功能。
+- 未纳入的语言（语法包自身有缺陷，已实测记录在 `scripts/check-tree-sitter.cjs`）：**Lua**（与其它语法包共存时解析失败）、**Bash**（`case` 语句触发语法包异常）、**Scala**（无法识别 `while` / `for`）、**Dart**（语法包 ABI 与运行时版本不兼容）。
+- 单次分析上限：**2000 个文件、单文件 1 MB**（超出部分跳过，保证中型项目流畅）；调用图超过 120 个节点时按连接度截断。
 - 调用图超过 60 个节点时按连接度截断为骨架图，界面会明确提示。
 - GitHub 匿名 API 限流 60 次/小时；文件内容走 `raw.githubusercontent.com`（不计入 API 配额），文件树失败时若无法回退缓存会提示填入 Token。
 - 拖入仅支持 `.zip` 文件，不支持文件夹。

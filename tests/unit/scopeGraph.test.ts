@@ -19,7 +19,8 @@ beforeAll(() => {
   const grammarDir = path.join(path.dirname(require.resolve('tree-sitter-wasms/package.json')), 'out');
   configureParserEnv({
     runtimeWasm: () => path.join(wtDir, 'tree-sitter.wasm'),
-    grammarWasm: (lang: LangId) => path.join(grammarDir, `tree-sitter-${lang}.wasm`),
+    // 入参是语法包名（grammarFileName 已由 parser 内部换算）
+    grammarWasm: (grammar) => path.join(grammarDir, `tree-sitter-${grammar}.wasm`),
   });
 });
 

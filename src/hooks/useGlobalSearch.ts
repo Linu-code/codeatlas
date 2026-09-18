@@ -15,11 +15,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileNode, RepoFS, RepoError } from '../types/repo';
 import { flattenFiles } from '../sources/tree';
 import type { SearchMatch, SearchResponse } from '../workers/search.worker';
+import { MAX_SEARCH_BYTES, MAX_SEARCH_FILES } from '../analysis/limits';
 
 const TIMEOUT_MS = 10_000;
 const MAX_RESULTS = 500;
-const MAX_FILES = 600;
-const MAX_FILE_BYTES = 256 * 1024;
 const PREFETCH_CONCURRENCY = 8;
 
 export interface SearchState {
@@ -72,7 +71,7 @@ export function useGlobalSearch() {
       // ---------- 1. 预取文件内容 ----------
       const targets = flattenFiles(tree)
         .filter((p) => !/\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|woff2?|ttf|wasm|mp4|mp3)$/i.test(p))
-        .slice(0, MAX_FILES);
+        .slice(0, MAX_SEARCH_FILES);
       setState((prev) => ({ ...prev, progress: { loaded: 0, total: targets.length } }));
 
       const payload: { path: string; text: string }[] = [];
@@ -86,7 +85,7 @@ export function useGlobalSearch() {
           if (runId !== runIdRef.current) return;
           try {
             const text = await fs.readFile(path);
-            if (text.length <= MAX_FILE_BYTES) payload.push({ path, text });
+            if (text.length <= MAX_SEARCH_BYTES) payload.push({ path, text });
           } catch {
             // 读取失败的文件跳过（不阻断搜索）
           } finally {

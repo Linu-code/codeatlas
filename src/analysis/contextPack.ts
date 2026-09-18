@@ -163,7 +163,7 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
     '',
     '## 项目概览',
     `- 仓库：${input.repoName}${input.branch ? ` @${input.branch}` : ''}`,
-    `- 分析文件：${input.files.length} 个（JS/TS/Python）`,
+    `- 分析文件：${input.files.length} 个`,
     `- 语言分布：${langs}`,
     `- 符号总数：${ranked.length}（函数/类定义）`,
     totalSloc !== undefined ? `- 代码行数：${totalSloc}` : '',

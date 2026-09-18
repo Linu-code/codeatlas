@@ -42,7 +42,7 @@ function collectImportPaths(node: Parser.SyntaxNode, out: string[]): void {
 
 export const goHandler: LangHandler = {
   id: 'go',
-  callNodeType: 'call_expression',
+  callNodeTypes: new Set(['call_expression']),
   identifierTypes: new Set(['identifier', 'field_identifier', 'type_identifier']),
   importNodeTypes: new Set(['import_declaration']),
 

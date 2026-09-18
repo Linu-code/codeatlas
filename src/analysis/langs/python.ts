@@ -26,7 +26,7 @@ function pyName(node: Parser.SyntaxNode): string | null {
 
 export const pythonHandler: LangHandler = {
   id: 'python',
-  callNodeType: 'call',
+  callNodeTypes: new Set(['call']),
   identifierTypes: new Set(['identifier']),
   importNodeTypes: IMPORT_NODES,
 

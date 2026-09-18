@@ -6,9 +6,14 @@
 
 ### 新增
 
-- **多语言支持（第一阶段）**：新增 **Go** 与 **Rust** 的 AST 分析 —— 调用图、跨文件跳转、代码度量与 AI 上下文包现覆盖 6 种语言（JS / TS / TSX / Python / Go / Rust）。
-  - 语言规则按「每种语言一个文件」组织：`src/analysis/langs/{javascript,python,go,rust}.ts`，各自实现统一的 `LangHandler` 契约；遍历逻辑（`symbols.ts`）不含语言特判，后续新增语言不必改动它。
-  - 导出规则按语言语义实现：JS 看 `export`、Python 看顶层且非 `_` 前缀、Go 看首字母大写、Rust 看 `pub`。
+- **多语言支持（N1 完成）**：AST 分析从 6 种扩展到 **12 个主流语言族**（JavaScript / TypeScript / TSX / Python / Go / Rust / Java / C / C++ / C# / PHP / Kotlin / Swift / Ruby），调用图、跨文件跳转、代码度量与 AI 上下文包全部覆盖，语法高亮与文件预览同步跟进。
+  - 语言规则按「每种语言一个文件」组织：`src/analysis/langs/*.ts`，各自实现统一的 `LangHandler` 契约；`symbols.ts` 保持零语言特判，新增语言只需加一个文件并在注册表登记。
+  - 导出规则按语言语义实现：JS 看 `export`、Python 看顶层非 `_` 前缀、Go 看首字母大写、Rust 看 `pub`、Java/C#/Kotlin/Swift 看可见性修饰符、PHP 默认 public（接口成员隐式 public）、C/C++ 看 `static` 与 `public:/private:` 区段、Ruby 看裸 `private`。
+  - 调用形态覆盖各语言差异：Java 的 `new` 与构造器调用、C++ 的 `ns::fn()` 与 `new`、C# 的 member access、PHP 的四种调用节点、Ruby 的 `require` 识别为导入且不污染调用图。
+  - 各语言的分支/循环/异常节点集合逐一实测后写入 `metrics.ts`（例如 Kotlin 与 Swift 的 `&&` 是独立节点类型、Ruby 的 `and`/`or` 是 `binary` 的运算符字段）。
+- **规模上限提升**：单次分析 400 → **2000** 个文件、单文件 256 KB → **1 MB**；调用图截断阈值 60 → **120** 节点；全局搜索 600 → 2000 个文件。上限集中定义在 `src/analysis/limits.ts`。
+- **tree-sitter 自检升级**：`npm run check:tree-sitter` 现在逐一验证全部 14 个语法包，并额外执行「多语法包共存后复解析」检查，可提前发现上游语法包回归。
+- **语法包适配记录**：Lua（多语言共存时解析失败）、Bash（`case` 语句触发异常）、Scala（无法识别 `while`/`for`）、Dart（ABI 版本不兼容）因语法包自身缺陷暂未纳入，结论与复现方式记录在自检脚本内，便于上游修复后重新评估。
 
 ### 变更（工程 / CI）
 

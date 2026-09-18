@@ -25,7 +25,7 @@ const EXPORT_SCOPES = new Set(['export_statement']);
 
 export const javascriptHandler: LangHandler = {
   id: 'javascript',
-  callNodeType: 'call_expression',
+  callNodeTypes: new Set(['call_expression']),
   identifierTypes: new Set(['identifier']),
   importNodeTypes: new Set(['import_statement']),
 

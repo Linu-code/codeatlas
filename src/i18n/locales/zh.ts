@@ -84,7 +84,7 @@ export const zh = {
     callGraph: '调用关系图',
     analyze: '生成调用图',
     analyzing: '分析中...',
-    noGraph: '没有找到可分析的 JS/TS/Python 文件',
+    noGraph: '没有找到可分析的文件（支持 JS/TS、Python、Go、Rust、Java、C/C++、C#、PHP、Kotlin、Swift、Ruby）',
     graphStats: '函数 {{nodes}} 个 · 调用 {{edges}} 条 · 已解析 {{parsed}}/{{total}} 个文件',
     graphTruncated: '节点过多，已保留调用关系最密集的 {{kept}}/{{total}} 个函数',
     parseFailedCount: '解析失败 {{count}} 个文件',

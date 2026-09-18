@@ -10,6 +10,12 @@
  * 0.25+ 的运行时改用新版 dylink 段加载 wasm，与旧 ABI 构建的语法包不兼容
  * （报 getDylinkMetadata 失败），scripts/check-tree-sitter.cjs 可复现该问题。
  *
+ * 语言扩容注意（实测结论，见 scripts/check-tree-sitter.cjs 的 LANG_SAMPLES）：
+ *   · 同一运行时内可共存十余种语法包，已逐一验证解析正常
+ *   · Lua 语法包在多语言共存时会解析失败，Bash 语法包遇到 `case` 语句会抛异常，
+ *     Scala 语法包无法识别 while / for —— 三者均未纳入，待上游语法包修复后再评估
+ *   · Dart / Elm / QL 的语法包与 0.22 运行时 ABI 不兼容，同样未纳入
+ *
  * 降级策略（提示词要求）：
  *   · 语法包加载失败 → 该语言标记为不支持，调用方跳过并提示（i18n: errors.unsupportedLanguage）
  *   · 单文件解析超时/异常 → 计入 failedFiles，不影响其它文件
@@ -29,7 +35,15 @@ export type LangId =
   | 'tsx'
   | 'python'
   | 'go'
-  | 'rust';
+  | 'rust'
+  | 'java'
+  | 'c'
+  | 'cpp'
+  | 'csharp'
+  | 'php'
+  | 'kotlin'
+  | 'swift'
+  | 'ruby';
 
 /** 支持的扩展名 → 语言 */
 export const EXT_TO_LANG: Record<string, LangId> = {
@@ -42,7 +56,40 @@ export const EXT_TO_LANG: Record<string, LangId> = {
   py: 'python',
   go: 'go',
   rs: 'rust',
+  java: 'java',
+  c: 'c',
+  h: 'c', // C 头文件默认按 C 解析（C++ 头文件请用 hpp/hh/hxx）
+  cpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  cpp2: 'cpp',
+  hpp: 'cpp',
+  hh: 'cpp',
+  hxx: 'cpp',
+  cs: 'csharp',
+  php: 'php',
+  phtml: 'php',
+  kt: 'kotlin',
+  kts: 'kotlin',
+  swift: 'swift',
+  rb: 'ruby',
+  rake: 'ruby',
+  gemspec: 'ruby',
 };
+
+/**
+ * LangId → 语法包名。
+ * 绝大多数语言同名，只有 C# 的语法包叫 `c_sharp`（tree-sitter-wasms 的命名）。
+ * 集中在此映射，避免各调用方（浏览器环境 / 单测 / 构建脚本）各写一份。
+ */
+const GRAMMAR_FILE: Partial<Record<LangId, string>> = {
+  csharp: 'c_sharp',
+};
+
+/** 取语法包名（tree-sitter-<name>.wasm 里的 name） */
+export function grammarFileName(lang: LangId): string {
+  return GRAMMAR_FILE[lang] ?? lang;
+}
 
 export function langOfPath(path: string): LangId | null {
   const ext = path.split('.').pop()?.toLowerCase() ?? '';
@@ -64,7 +111,12 @@ interface PoolEntry {
 /** 环境适配：浏览器走 URL 请求，Node 测试走文件路径 */
 export interface ParserEnv {
   runtimeWasm: () => string;
-  grammarWasm: (lang: LangId) => string;
+  /**
+   * 入参是**语法包名**（`tree-sitter-<name>.wasm` 里的 name），不是 LangId ——
+   * 两者由 grammarFileName() 换算（如 csharp → c_sharp）。
+   * 这样各环境只需关心"怎么取到文件"，不必重复实现语言标识的映射规则。
+   */
+  grammarWasm: (grammarName: string) => string;
 }
 
 /** 浏览器环境：从 public/grammars/ 加载（构建前由 scripts/copy-grammars.mjs 复制） */
@@ -75,7 +127,7 @@ export function browserEnv(): ParserEnv {
   const prefix = base.endsWith('/') ? base : base + '/';
   return {
     runtimeWasm: () => `${prefix}grammars/tree-sitter.wasm`,
-    grammarWasm: (lang) => `${prefix}grammars/tree-sitter-${lang}.wasm`,
+    grammarWasm: (grammarName) => `${prefix}grammars/tree-sitter-${grammarName}.wasm`,
   };
 }
 
@@ -125,7 +177,7 @@ export async function getParser(lang: LangId): Promise<ParserInstance | null> {
 
   const ctor = await initParsers();
   try {
-    const language = await ctor.Language.load(env.grammarWasm(lang));
+    const language = await ctor.Language.load(env.grammarWasm(grammarFileName(lang)));
     const parser = new ctor();
     parser.setLanguage(language);
     pool.set(lang, { parser, language });

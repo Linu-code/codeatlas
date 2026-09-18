@@ -42,7 +42,11 @@ export function extractFile(root: Parser.SyntaxNode, path: string, language: Lan
 
   const visit = (node: Parser.SyntaxNode, inImport = false) => {
     const type = node.type;
-    const nowInImport = inImport || handler.importNodeTypes.has(type);
+
+    // 导入路径先取：返回非空即认为整棵子树属于导入（模块名不是代码引用），
+    // 这条规则让 Ruby 这类"用普通调用表达 require"的语言也能正确抑制引用。
+    const importPaths = handler.importPaths(node);
+    const nowInImport = inImport || handler.importNodeTypes.has(type) || importPaths.length > 0;
 
     // ---------- 标识符引用（供"查找引用"使用） ----------
     if (handler.identifierTypes.has(type) && !nowInImport) {
@@ -51,7 +55,7 @@ export function extractFile(root: Parser.SyntaxNode, path: string, language: Lan
         name: node.text,
         line: node.startPosition.row + 1,
         column: node.startPosition.column + 1,
-        kind: node.parent?.type === handler.callNodeType ? 'call' : 'identifier',
+        kind: handler.callNodeTypes.has(node.parent?.type ?? '') ? 'call' : 'identifier',
       });
     }
 
@@ -73,10 +77,10 @@ export function extractFile(root: Parser.SyntaxNode, path: string, language: Lan
     }
 
     // ---------- 导入 ----------
-    for (const p of handler.importPaths(node)) imports.push(p);
+    for (const p of importPaths) imports.push(p);
 
     // ---------- 调用 ----------
-    if (type === handler.callNodeType) {
+    if (handler.callNodeTypes.has(type)) {
       const callee = handler.calleeName(node);
       if (callee) {
         calls.push({

@@ -110,20 +110,33 @@ export const EXT_TO_PRISM: Record<string, string> = {
   c: 'c',
   h: 'c',
   cpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  cpp2: 'cpp',
   hpp: 'cpp',
+  hh: 'cpp',
+  hxx: 'cpp',
   cs: 'csharp',
   rb: 'ruby',
+  rake: 'ruby',
+  gemspec: 'ruby',
   php: 'php',
+  phtml: 'php',
+  kt: 'kotlin',
+  kts: 'kotlin',
+  swift: 'swift',
   sql: 'sql',
   ini: 'ini',
   xml: 'markup',
   svg: 'markup',
 };
 
-/** 提示词明确列出"可预览"的扩展名；未列出的走"不支持预览"提示 */
+/** 可预览的扩展名（对齐支持分析的语言全集，另有纯预览型如 md/json/yml） */
 export const PREVIEWABLE_EXTS = new Set([
-  'js', 'ts', 'jsx', 'tsx', 'py', 'md', 'json', 'yaml', 'yml', 'toml',
-  'txt', 'css', 'html', 'sh', 'go', 'rs', 'java', 'markdown',
+  'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx',
+  'py', 'go', 'rs', 'java', 'c', 'h', 'cpp', 'cc', 'cxx', 'hpp', 'hh', 'hxx',
+  'cs', 'php', 'phtml', 'kt', 'kts', 'swift', 'rb', 'rake', 'gemspec',
+  'md', 'markdown', 'json', 'yaml', 'yml', 'toml', 'txt', 'css', 'scss', 'html', 'htm', 'sh',
 ]);
 
 export function extOf(path: string): string {

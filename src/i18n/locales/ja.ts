@@ -81,7 +81,7 @@ export const ja = {
     callGraph: '呼び出しグラフ',
     analyze: '呼び出しグラフを生成',
     analyzing: '解析中...',
-    noGraph: '解析可能な JS/TS/Python ファイルが見つかりません',
+    noGraph: '解析可能なファイルが見つかりません（JS/TS・Python・Go・Rust・Java・C/C++・C#・PHP・Kotlin・Swift・Ruby に対応）',
     graphStats: '関数 {{nodes}} 件 · 呼び出し {{edges}} 件 · 解析 {{parsed}}/{{total}} ファイル',
     graphTruncated: 'ノードが多すぎるため、接続の多い {{kept}}/{{total}} 関数に絞り込みました',
     parseFailedCount: '解析失敗 {{count}} ファイル',

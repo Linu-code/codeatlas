@@ -41,13 +41,13 @@ export interface CallGraph {
 }
 
 export interface BuildOptions {
-  /** 最大节点数（默认 60，符合提示词"超过则截断 Top-K"） */
+  /** 最大节点数（默认 120，超过则截断 Top-K；调用方可传 limits.MAX_GRAPH_NODES） */
   maxNodes?: number;
 }
 
 /** 由分析结果构建调用图 */
 export function buildCallGraph(files: FileAnalysis[], opts: BuildOptions = {}): CallGraph {
-  const maxNodes = opts.maxNodes ?? 60;
+  const maxNodes = opts.maxNodes ?? 120;
 
   // ---------- 1. 建索引：名字 → 定义列表 ----------
   const defsByName = new Map<string, { id: string; file: string; line: number; kind: SymbolDef['kind'] }[]>();

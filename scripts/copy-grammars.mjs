@@ -15,8 +15,27 @@ const require = createRequire(import.meta.url);
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(projectRoot, 'public', 'grammars');
 
-/** 支持分析的语法包（需与 src/analysis/parser.ts 的 LangId 保持一致） */
-const GRAMMARS = ['javascript', 'typescript', 'tsx', 'python', 'go', 'rust'];
+/**
+ * 支持分析的语法包（需与 src/analysis/parser.ts 的 LangId 保持一致）。
+ * 注意：此处写的是**语法包名**（wasm 文件名 tree-sitter-<name>.wasm 里的 name），
+ * C# 的包名是 `c_sharp`，而 LangId 是 `csharp` —— 两者由 parser.ts 的 GRAMMAR_FILE 映射。
+ */
+const GRAMMARS = [
+  'javascript',
+  'typescript',
+  'tsx',
+  'python',
+  'go',
+  'rust',
+  'java',
+  'c',
+  'cpp',
+  'c_sharp',
+  'php',
+  'kotlin',
+  'swift',
+  'ruby',
+];
 
 async function main() {
   await mkdir(outDir, { recursive: true });

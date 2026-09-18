@@ -32,6 +32,12 @@ const LOADERS: Record<string, Loader> = {
   java: () => import('prismjs/components/prism-java'),
   c: () => import('prismjs/components/prism-c'),
   cpp: () => import('prismjs/components/prism-cpp'),
+  csharp: () => import('prismjs/components/prism-csharp'),
+  ruby: () => import('prismjs/components/prism-ruby'),
+  php: () => import('prismjs/components/prism-php'),
+  kotlin: () => import('prismjs/components/prism-kotlin'),
+  swift: () => import('prismjs/components/prism-swift'),
+  'markup-templating': () => import('prismjs/components/prism-markup-templating'),
   sql: () => import('prismjs/components/prism-sql'),
   ini: () => import('prismjs/components/prism-ini'),
   scss: () => import('prismjs/components/prism-scss'),
@@ -44,6 +50,9 @@ const DEPS: Record<string, string[]> = {
   tsx: ['jsx', 'typescript'],
   cpp: ['c'],
   scss: ['css'],
+  // 新增语言的依赖（clike 已静态引入，无需列出）
+  php: ['markup-templating'],
+  'markup-templating': ['markup'],
 };
 
 const inFlight = new Map<string, Promise<void>>();

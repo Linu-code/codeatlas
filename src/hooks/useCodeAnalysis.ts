@@ -25,9 +25,8 @@ import { buildCallGraph, type CallGraph } from '../analysis/callgraph';
 import { toMermaid } from '../analysis/mermaid';
 import { buildScopeIndex, type ScopeIndex } from '../analysis/scopeGraph';
 import { computeMetrics, healthScore, type FileMetrics } from '../analysis/metrics';
+import { MAX_ANALYSIS_FILES, MAX_GRAPH_NODES, MAX_SOURCE_BYTES } from '../analysis/limits';
 
-const MAX_FILES = 400;
-const MAX_FILE_BYTES = 256 * 1024;
 const READ_CONCURRENCY = 8;
 
 export interface AnalysisState {
@@ -40,7 +39,7 @@ export interface AnalysisState {
   index: ScopeIndex | null;
   graph: CallGraph | null;
   mermaid: string;
-  /** 没有可分析的 JS/TS/Python 文件 */
+  /** 没有找到可分析的文件（仓库中不存在受支持语言的源文件） */
   empty: boolean;
   error: RepoError | null;
 }
@@ -104,7 +103,7 @@ export function useCodeAnalysis() {
 
       const runId = ++runIdRef.current;
       const all = flattenFiles(tree);
-      const targets = all.filter((p) => langOfPath(p) !== null).slice(0, MAX_FILES);
+      const targets = all.filter((p) => langOfPath(p) !== null).slice(0, MAX_ANALYSIS_FILES);
 
       if (targets.length === 0) {
         signatureRef.current = signature;
@@ -127,7 +126,7 @@ export function useCodeAnalysis() {
           if (runId !== runIdRef.current) return;
           try {
             const code = await fs.readFile(path);
-            if (code.length <= MAX_FILE_BYTES) {
+            if (code.length <= MAX_SOURCE_BYTES) {
               const lang = langOfPath(path);
               if (lang) {
                 const parsed = await parseCode(code, lang);
@@ -156,7 +155,7 @@ export function useCodeAnalysis() {
       if (runId !== runIdRef.current) return stateRef.current;
 
       // ---------- 派生三种结果 ----------
-      const graph = buildCallGraph(results, { maxNodes: 60 });
+      const graph = buildCallGraph(results, { maxNodes: MAX_GRAPH_NODES });
       const index = buildScopeIndex(results);
       const metrics = [...metricsByPath.values()].sort(
         (a, b) => b.maxFunctionComplexity - a.maxFunctionComplexity || a.path.localeCompare(b.path),

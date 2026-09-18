@@ -21,7 +21,7 @@ const IMPL_NODES = new Set(['impl_item']);
 
 export const rustHandler: LangHandler = {
   id: 'rust',
-  callNodeType: 'call_expression',
+  callNodeTypes: new Set(['call_expression']),
   identifierTypes: new Set(['identifier', 'field_identifier', 'type_identifier']),
   importNodeTypes: new Set(['use_declaration']),
 

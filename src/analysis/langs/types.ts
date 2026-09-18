@@ -2,17 +2,26 @@
  * 分析层公共类型 + 语言处理器（LangHandler）契约
  *
  * 目录约定（每种语言一个文件，便于扩展与阅读）：
- *   src/analysis/langs/types.ts        本文件：共享类型 + 处理器接口
- *   src/analysis/langs/javascript.ts   JS / TS / TSX（同一套规则）
+ *   src/analysis/langs/types.ts        本文件：共享类型 + 处理器接口 + 通用工具
+ *   src/analysis/langs/javascript.ts   JS / TS / TSX（同一套节点命名）
  *   src/analysis/langs/python.ts       Python
  *   src/analysis/langs/go.ts           Go
  *   src/analysis/langs/rust.ts         Rust
+ *   src/analysis/langs/java.ts         Java
+ *   src/analysis/langs/c.ts            C（同时导出 C 系共享工具，供 cpp.ts 复用）
+ *   src/analysis/langs/cpp.ts          C++
+ *   src/analysis/langs/csharp.ts       C#
+ *   src/analysis/langs/php.ts          PHP
+ *   src/analysis/langs/kotlin.ts       Kotlin
+ *   src/analysis/langs/swift.ts        Swift
+ *   src/analysis/langs/ruby.ts         Ruby
  *   src/analysis/langs/index.ts        注册表：LangId → handler
  *
  * 新增一种语言只需四步：
  *   ① parser.ts 的 LangId / EXT_TO_LANG 注册语言与扩展名
+ *      （语法包名与 LangId 不同名时，补 GRAMMAR_FILE 映射，如 csharp → c_sharp）
  *   ② 在本目录新增 <lang>.ts 实现 LangHandler
- *   ③ langs/index.ts 注册
+ *   ③ langs/index.ts 注册（漏登记会被 Record<LangId, LangHandler> 拦住）
  *   ④ scripts/copy-grammars.mjs 的 GRAMMARS 加入语法包名
  */
 
@@ -77,13 +86,22 @@ export interface FileAnalysis {
 export interface LangHandler {
   readonly id: LangId;
 
-  /** 调用表达式节点类型（JS: call_expression / Python: call / Go: call_expression …） */
-  readonly callNodeType: string;
+  /**
+   * 调用表达式的节点类型集合。
+   * 多数语言只有一种（call_expression / call）；但 Java、C#、PHP 把
+   * 「普通调用」与「构造调用」分成不同节点（如 invocation_expression 与
+   * object_creation_expression），因此用集合而非单一字符串。
+   */
+  readonly callNodeTypes: ReadonlySet<string>;
 
-  /** 计入"标识符引用"的节点类型（通常只有 identifier） */
+  /** 计入"标识符引用"的节点类型（如 identifier / simple_identifier / name） */
   readonly identifierTypes: ReadonlySet<string>;
 
-  /** 导入语句节点类型 —— 其内部的 identifier 不计入引用（模块名不是引用） */
+  /**
+   * 导入语句节点类型 —— 其内部的 identifier 不计入引用（模块名不是引用）。
+   * 说明：extractFile 还会把 importPaths() 返回非空路径的子树一并视为导入，
+   * 因此像 Ruby 这种「用普通调用表达 require」的语言也能正确抑制。
+   */
   readonly importNodeTypes: ReadonlySet<string>;
 
   /** 该节点是否为符号定义；非定义返回 null */
@@ -126,6 +144,38 @@ export function hasAncestor(node: Parser.SyntaxNode, types: ReadonlySet<string>)
     cur = cur.parent;
   }
   return false;
+}
+
+/**
+ * 直接子节点中第一个类型命中者。
+ * 适用于「名字不是字段」的语法（如 Kotlin 的 class_declaration 只有一个裸 type_identifier）。
+ */
+export function firstChildOfType(
+  node: Parser.SyntaxNode,
+  types: ReadonlySet<string>,
+): Parser.SyntaxNode | null {
+  for (const child of node.namedChildren) {
+    if (types.has(child.type)) return child;
+  }
+  return null;
+}
+
+/**
+ * 汇总直接子节点中指定类型的文本（空格分隔）。
+ * 用于可见性修饰符：Java 是单个 `modifiers` 节点，C# 是多个 `modifier` 节点，
+ * 两种形态都能拿到完整文本（如 "public static"）。
+ */
+export function modifiersText(node: Parser.SyntaxNode, types: ReadonlySet<string>): string {
+  const parts: string[] = [];
+  for (const child of node.namedChildren) {
+    if (types.has(child.type)) parts.push(child.text);
+  }
+  return parts.join(' ');
+}
+
+/** 文本中是否含某个独立词（避免 "private" 命中 "privateThing"） */
+export function hasWord(text: string, word: string): boolean {
+  return text.split(/\W+/).includes(word);
 }
 
 /** 压平空白并截断 */
