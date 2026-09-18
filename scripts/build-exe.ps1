@@ -127,8 +127,13 @@ if ($LASTEXITCODE -ne 0) { throw "build failed with exit code $LASTEXITCODE" }
 # (portable exe + installer) are therefore copied to the repo root so they can
 # be double-clicked without hunting through target/.
 $root = (Get-Location).Path
-$exe = Get-ChildItem 'src-tauri\target\release\*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-$nsis = Get-ChildItem 'src-tauri\target\release\bundle\nsis\*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+# NOTE: take the NEWEST match, not the first one. Stale artifacts from earlier
+# versions can still sit in these directories (NSIS leaves the old installer
+# behind), and `Select-Object -First 1` would then copy the wrong file.
+$exe = Get-ChildItem 'src-tauri\target\release\*.exe' -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$nsis = Get-ChildItem 'src-tauri\target\release\bundle\nsis\*.exe' -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
 $copied = @()
 if ($exe) {
