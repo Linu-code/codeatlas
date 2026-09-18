@@ -1,0 +1,47 @@
+name: CodeQL
+
+# 静态安全扫描（GitHub 官方推荐）。公共仓库免费。
+# 结果出现在仓库的 Security → Code scanning 页面。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 每周一 03:17 UTC 全量扫描（避开整点高峰）
+    - cron: '17 3 * * 1'
+
+# 最小权限：分析结果需要写入 security-events
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: 分析 ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # 上传 SARIF 结果
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript-typescript']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 初始化 CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: 自动构建（JS/TS 无需编译）
+        uses: github/codeql-action/autobuild@v3
+
+      - name: 执行分析并上传结果
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'

@@ -5,8 +5,10 @@
 > 完全本地运行 · 免费 · 轻量 · 安全 —— **不调用任何 AI/LLM，不收集任何数据，不上传任何文件。**
 
 [![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CodeQL](../../actions/workflows/codeql.yml/badge.svg)](../../actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](../../actions/workflows/release.yml/badge.svg)](../../releases)
+[![Docs](https://img.shields.io/badge/docs-online-4A6CF7.svg)](https://linu-code.github.io/codeatlas/)
 
 ![CodeAtlas 主界面](docs/screenshots/main.png)
 

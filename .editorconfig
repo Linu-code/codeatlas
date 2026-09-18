@@ -1,0 +1,23 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Markdown 的行尾空格有语义（硬换行），不清理
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{rs,toml}]
+indent_size = 4
+
+# Windows 脚本保持 CRLF，兼容 Windows PowerShell 5.1
+[*.{ps1,bat,cmd}]
+end_of_line = crlf
+
+[*.{yml,yaml}]
+indent_size = 2

@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+### 变更（工程 / CI）
+
+- **发布流程解耦**：文档站部署拆为独立 `pages.yml`（跟随 `main` 部署），不再挂在 tag 发布上
+  —— 原先挂在 tag 上会被 `github-pages` environment 的 "Deployment branches and tags"
+  保护规则拒绝，导致每次发版必失败。
+- **`release.yml`**：移除 Pages 部署；发布动作限定为 tag 触发；`draft: false`（tag 即发布意图），
+  形如 `v2.0.0-beta.1` 的预发布 tag 自动标记为 prerelease。
+- **最小权限**：`ci.yml` / `release.yml` / `pages.yml` 统一按 job 声明所需权限。
+- **依赖自动化**：新增 Dependabot（npm / cargo / GitHub Actions）；忽略破坏性升级
+  —— `web-tree-sitter` 与 `tree-sitter-wasms` 必须成对升级、React major 需专项适配。
+- **安全扫描**：新增 CodeQL（javascript-typescript）静态扫描。
+- **工程规范**：补 `.editorconfig`；提交身份改用 GitHub noreply 邮箱。
+
 ### 规划中
 
 - **2.0**（核心升级）：多语言支持（Rust/Go/Java/C/C#）、阅读路线、命令面板、架构视图（模块依赖图/类图/循环依赖）、分析结果持久化与增量分析、HTML 报告导出、本地目录数据源。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
