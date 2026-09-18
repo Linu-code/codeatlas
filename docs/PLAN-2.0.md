@@ -203,6 +203,7 @@
 1. **版本编排**（2026-09-17）：多平台支持独立为 **2.1**；本地 AI 独立为 **2.2**。2.0 专注本地化 + 深度 + 体验。
 2. **AI 边界**（2026-09-17）：坚持「**纯本地、无在线服务、无云端 AI**」红线不变；2.2 新增可选的本机 Ollama 集成——默认关闭、按需启用、断网可用、零外发。
 3. **版本号统一**（2026-09-17）：全项目对齐 `1.0.0`。
+4. **CI / 发布流程规范化**（2026-09-18）：文档站部署从 tag 发布中**解耦**（新增 `pages.yml`，跟随 `main` 部署，不再受 `github-pages` environment 的 tag 保护规则限制）；`release.yml` 只负责 tag → 构建 exe → 发布 Release；三个 workflow 统一最小权限；Dependabot 已忽略破坏性升级（`web-tree-sitter` / `tree-sitter-wasms` / React major）。流程约定见 [CONTRIBUTING.md](../CONTRIBUTING.md#分支与发布流程)。
 
 **待确认**
 
