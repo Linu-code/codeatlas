@@ -51,6 +51,48 @@ fix(zip): 修正 UNC 路径未被拦截的问题
 docs(readme): 补充打包步骤
 ```
 
+## 分支与发布流程
+
+### 分支策略
+
+- `main` 是唯一长期分支，**始终保持可发布状态**；功能与修复走短生命周期分支。
+- 分支命名：`feat/xxx`、`fix/xxx`、`ci/xxx`、`docs/xxx`、`chore/xxx`。
+- 禁止在 `main` 上直接提交业务改动；版本号 / 文档类小改动可由维护者直推。
+
+### PR 合入门槛
+
+1. **CI 必须全绿**：类型检查 → 单测 → tree-sitter 自检 → 生产构建 → E2E → Rust 编译检查。
+2. 走 PR 流程留痕（即使是单人维护期，也不直接推 `main`）。
+3. 涉及 UI 的改动附改动前后截图。
+
+### 发布流程
+
+```text
+main 上打 annotated tag（SemVer）→ push tag
+        ↓
+触发 release.yml：单测把关 → 构建 Windows exe + NSIS 安装包
+        ↓
+发布 GitHub Release（附 SHA256SUMS.txt + 自动生成 release notes）
+```
+
+- tag 格式：`v<major>.<minor>.<patch>`，**必须带 `v` 前缀**（workflow 只匹配 `v*`；写成 `1.0.0` 不会触发发布）。
+- 预发布：tag 含 `-`（如 `v2.0.0-beta.1`）自动标记为 prerelease。
+- 发布前同步更新 `CHANGELOG.md`，以及 `package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json` 三处版本号。
+
+### 文档站
+
+`pages.yml` 跟随 `main` 自动部署 `docs/` 到 GitHub Pages，与 tag 发布**解耦**。
+
+> 不要把它挂回发布流程：`github-pages` environment 的 "Deployment branches and tags"
+> 默认不允许 tag 部署，挂在 tag 上必然失败（并把整个 Release 拖红）。
+
+### 自动化
+
+- **Dependabot**：npm / cargo 每周、GitHub Actions 每月检查依赖更新并开 PR。
+- 破坏性升级已配置忽略项，需走专项 PR 并写明迁移方案：
+  - `web-tree-sitter` / `tree-sitter-wasms`（必须成对升级，见 README）
+  - `react` / `react-dom` 的 major 升级
+
 ## PR 检查清单
 
 - [ ] `npm test` 全绿，新增逻辑有对应单测
