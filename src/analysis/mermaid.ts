@@ -9,6 +9,8 @@
  */
 
 import type { CallGraph } from './callgraph';
+import type { ModuleGraph } from './moduleGraph';
+import type { ClassGraph } from './classGraph';
 
 /** 稳定的短 id 生成（同输入必得同输出，便于导出对比） */
 export function sanitizeId(raw: string): string {
@@ -82,8 +84,62 @@ export function toMermaid(graph: CallGraph, direction: 'LR' | 'TD' = 'LR'): stri
   return lines.join('\n');
 }
 
-/** 生成独立可分享的 HTML（导出/调试用，含深色背景） */
-export function toStandaloneHtml(mermaidCode: string, title: string): string {
+/**
+ * 模块依赖图 → Mermaid graph（N3）
+ * 节点是**目录**（模块），边上标注文件级依赖条数。节点太多时图会不可读，
+ * 因此调用方应先用 `ModuleGraph` 的规模字段自行判断是否渲染。
+ */
+export function toModuleMermaid(graph: ModuleGraph, direction: 'LR' | 'TD' = 'LR'): string {
+  const lines: string[] = [`graph ${direction}`];
+  for (const node of graph.nodes) {
+    const label = node.id === '(root)' ? '.' : node.id;
+    lines.push(`  ${sanitizeId(node.id)}["${escapeLabel(`${label} (${node.files})`)}"]`);
+  }
+  for (const edge of graph.edges) {
+    lines.push(`  ${sanitizeId(edge.from)} -->|${edge.weight}| ${sanitizeId(edge.to)}`);
+  }
+
+  // 被多个模块依赖的模块标红（架构里的"关键路径"）
+  const fanIn = new Map<string, number>();
+  for (const edge of graph.edges) fanIn.set(edge.to, (fanIn.get(edge.to) ?? 0) + 1);
+  const hot = graph.nodes.filter((n) => (fanIn.get(n.id) ?? 0) >= 2).map((n) => sanitizeId(n.id));
+  if (hot.length > 0) {
+    lines.push('  classDef hot fill:#4a6cf7,stroke:#5d7bff,color:#ffffff;');
+    lines.push(`  class ${hot.join(',')} hot;`);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * 类图节点的 Mermaid 标识符。
+ * Mermaid 的类名必须是合法标识符，且跨文件可能重名 → 用「名字 + 短哈希」保证唯一。
+ * 导出它，是为了让面板能把点击到的节点反查回文件（同一算法，不会漂移）。
+ */
+export function classDiagramId(node: { id: string; name: string }): string {
+  const base = node.name.replace(/[^A-Za-z0-9_$]/g, '_') || 'C';
+  return `${base}_${sanitizeId(node.id).slice(1, 6)}`;
+}
+
+/**
+ * 类图 → Mermaid classDiagram（N3）
+ * `<|--` 表示继承，`<|..` 表示实现（协议 / 接口）。
+ */
+export function toClassMermaid(graph: ClassGraph, direction: 'LR' | 'TD' = 'LR'): string {
+  const lines: string[] = ['classDiagram', `  direction ${direction}`];
+  for (const node of graph.nodes) {
+    lines.push(`  class ${classDiagramId(node)}`);
+  }
+  const ids = new Map(graph.nodes.map((n) => [n.id, classDiagramId(n)]));
+  for (const edge of graph.edges) {
+    const parent = ids.get(edge.to);
+    const child = ids.get(edge.from);
+    if (!parent || !child) continue;
+    lines.push(`  ${parent} ${edge.kind === 'extends' ? '<|--' : '<|..'} ${child}`);
+  }
+  return lines.join('\n');
+}
+
+/** 生成独立可分享的 HTML（导出/调试用，含深色背景） */export function toStandaloneHtml(mermaidCode: string, title: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

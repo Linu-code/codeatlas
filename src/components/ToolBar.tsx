@@ -6,7 +6,17 @@
 import { useTranslation } from 'react-i18next';
 import { isTauri } from '../utils/tauri';
 
-export type BottomPanel = 'none' | 'graph' | 'metrics' | 'search' | 'references';
+export type BottomPanel =
+  | 'none'
+  | 'graph'
+  | 'metrics'
+  | 'search'
+  | 'references'
+  // N2
+  | 'reading'
+  | 'outline'
+  // N3
+  | 'architecture';
 
 interface Props {
   hasProject: boolean;
@@ -67,6 +77,14 @@ export default function ToolBar({
         !hasProject,
       )}
       {btn(t('analysis:metrics'), panel === 'metrics', () => onTogglePanel('metrics'), !hasProject)}
+      {btn(t('analysis:readingPath'), panel === 'reading', () => onTogglePanel('reading'), !hasProject)}
+      {btn(
+        t('analysis:architecture'),
+        panel === 'architecture',
+        () => onTogglePanel('architecture'),
+        !hasProject,
+      )}
+      {btn(t('analysis:outline'), panel === 'outline', () => onTogglePanel('outline'), !hasProject)}
       {btn(
         t('analysis:globalSearch'),
         panel === 'search',

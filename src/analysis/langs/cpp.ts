@@ -10,7 +10,7 @@
  */
 
 import type Parser from 'web-tree-sitter';
-import { hasAncestor, hasWord, modifiersText, type LangHandler, type SymbolKind, firstChildOfType } from './types';
+import { hasAncestor, hasWord, modifiersText, splitTypeNames, type LangHandler, type SymbolKind, firstChildOfType } from './types';
 import { cLikeCalleeName, cLikeDefName, unwrapDeclarator } from './c';
 
 const CLASS_NODES = new Set([
@@ -82,6 +82,16 @@ export const cppHandler: LangHandler = {
       return type ? type.text : null;
     }
     return cLikeCalleeName(node);
+  },
+
+  /**
+   * 继承关系：base_class_clause（`: public Base, public IFace`）。
+   * C++ 语法上不区分基类与抽象接口，统一归入 extends。
+   */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const clause = node.namedChildren.find((c) => c.type === 'base_class_clause');
+    if (!clause) return { extends: [], implements: [] };
+    return { extends: splitTypeNames(clause.text.replace(/^:/, '')), implements: [] };
   },
 
   entersScope(node): boolean {

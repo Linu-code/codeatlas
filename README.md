@@ -14,15 +14,19 @@
 
 ## 它解决什么问题
 
-读一个陌生仓库，通常要在浏览器、编辑器、搜索之间反复横跳。CodeAtlas 把"读懂一个项目"需要的五件事放进同一个窗口，并且**全部用确定性静态分析实现**（AST 解析 + 启发式规则 + 模板），因此离线可用、结果可复现、无需任何 API Key：
+读一个陌生仓库，通常要在浏览器、编辑器、搜索之间反复横跳。CodeAtlas 把"读懂一个项目"需要的几件事放进同一个窗口，并且**全部用确定性静态分析实现**（AST 解析 + 启发式规则 + 模板），因此离线可用、结果可复现、无需任何 API Key：
 
 | 能力 | 说明 | 实现方式 |
 |------|------|----------|
 | 📁 **文件树导航** | 折叠/展开、按名过滤，**自动标注目录用途**（`src/` → 源代码、`.github/` → CI 配置…） | 30 条规则表 + 内容启发式 |
+| 🧭 **阅读路线** | 自动给出「先读哪几个文件」：入口 → 枢纽 → 中间层 → 末端，文件树带序号角标 | 依赖图 PageRank + 入/出度角色判定 |
+| ⌨️ **命令面板** | `Ctrl/Cmd+K` 统一入口（命令 / 文件 / 符号模糊搜索），`Ctrl/Cmd+T` 直达符号定义 | 自研子序列模糊匹配（30 行，零依赖） |
+| 📋 **大纲视图** | 当前文件的符号树（类 → 方法嵌套），点击跳到对应行 | 行区间包含关系还原嵌套 |
+| 🏛️ **架构视图** | 模块级依赖图（可导出）、**循环依赖检测**、类图（继承/实现）、按用途分层 | 目录聚合 + Tarjan 强连通分量 |
 | 📊 **调用关系图** | 函数级调用图，按文件分组，可导出 SVG / PNG，可复制 Mermaid 代码 | web-tree-sitter AST + 去噪构图 + Mermaid |
-| 🧭 **跨文件跳转** | `Ctrl/Cmd+单击` 或 `F12` 转到定义，一键列全部引用（文件:行号） | 自研 scope graph 符号索引 |
+| 🎯 **跨文件跳转** | `Ctrl/Cmd+单击` 或 `F12` 转到定义，一键列全部引用（文件:行号） | 自研 scope graph 符号索引 |
 | 📈 **代码度量** | 圈复杂度（McCabe）、认知复杂度（SonarSource）、SLOC、健康评分 | **单次 AST 遍历**同时算出全部指标 |
-| 🎒 **AI 上下文包** | 一键生成 token 预算内、按重要性排序的符号摘要，喂给 Cursor / Trae / WorkBuddy 等工具 | PageRank + 二分预算裁剪 |
+| 🎒 **AI 上下文包** | 一键生成 token 预算内、按重要性排序的符号摘要（含阅读路线），喂给 Cursor / Trae / WorkBuddy 等工具 | PageRank + 二分预算裁剪 |
 
 ## 截图
 
@@ -33,6 +37,10 @@
 | 代码度量 | AI 上下文包 |
 |---|---|
 | ![度量](docs/screenshots/metrics.png) | ![上下文包](docs/screenshots/context-pack.png) |
+
+| 阅读路线 | 架构视图（模块依赖） |
+|---|---|
+| ![阅读路线](docs/screenshots/reading-path.png) | ![架构](docs/screenshots/architecture-modules.png) |
 
 > 截图由 E2E 测试自动生成：`npm run e2e` 会把界面截图写入 `docs/screenshots/`。
 
@@ -120,6 +128,8 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 | `Enter` | 加载仓库 / 触发搜索（空输入无响应） |
 | `↑` `↓` | 搜索结果导航；空输入时翻历史记录 |
 | `Esc` | 关闭搜索下拉 / 关闭面板 |
+| `Ctrl/Cmd + K` | 命令面板（命令 / 文件 / 符号统一搜索） |
+| `Ctrl/Cmd + T` | 符号搜索（直接跳到定义） |
 | `Ctrl/Cmd + 单击` 或 `F12` | 转到定义（选中文本后按 F12 亦可） |
 | `Ctrl/Cmd + Shift + F` | 全局正则搜索（Web Worker 执行，10 秒超时自动终止） |
 
@@ -161,6 +171,12 @@ codeatlas/
 │   │   ├── scopeGraph.ts  #   跨文件符号索引（转到定义 / 查找引用）
 │   │   ├── metrics.ts     #   圈复杂度 / 认知复杂度 / SLOC / 健康评分（各语言节点集合集中在此）
 │   │   ├── limits.ts      #   规模上限（文件数 / 单文件体积 / 图节点数）
+│   │   ├── importResolver.ts #  跨语言 import 解析（相对路径 / 点号包名 / 斜杠模块路径 / 别名）
+│   │   ├── readingPath.ts #   阅读路线（PageRank + 入/出度角色）
+│   │   ├── outline.ts     #   符号大纲树（行区间包含还原嵌套）
+│   │   ├── moduleGraph.ts #   模块（目录）依赖图 + 分层
+│   │   ├── cycles.ts      #   循环依赖（Tarjan 强连通分量）
+│   │   ├── classGraph.ts  #   类图（继承 / 实现）
 │   │   ├── pagerank.ts    #   文件依赖图 PageRank
 │   │   ├── contextPack.ts #   AI 上下文包（PageRank + token 二分裁剪）
 │   │   ├── directories.ts #   目录用途标注规则表
@@ -223,8 +239,10 @@ npm run check:tree-sitter   # tree-sitter 运行时与语法包兼容性自检
 
 ## 路线图
 
-- **1.0**（当前）：Windows 桌面版；GitHub 与本地 ZIP 两种数据源；JS/TS/TSX/Python 分析。
-- **2.0 / 2.1 / 2.2**（规划中）：多语言与本地目录、阅读路线与架构视图、多平台支持、可选本地 AI。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
+- **1.0**：Windows 桌面版；GitHub 与本地 ZIP 两种数据源；JS/TS/TSX/Python 分析。
+- **2.0**（开发中）：多语言（12 个语言族）与规模提升已完成；阅读路线 / 命令面板 / 架构视图已完成；后续为持久化与增量分析、报告导出、本地目录数据源。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
+- **2.1**：多平台支持（macOS / Linux 打包 + CI 矩阵）。
+- **2.2**：可选本地 AI（Ollama 本地模型，默认关闭）。
 
 ## 安全
 

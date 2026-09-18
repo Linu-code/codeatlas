@@ -20,6 +20,8 @@ interface FileTreeProps {
   tree: FileNode[];
   activePath: string | null;
   onSelect: (path: string) => void;
+  /** 建议阅读路线的序号（N2）：文件 → 序号，命中即在树里显示角标 */
+  orderByPath?: Map<string, number>;
 }
 
 /** 过滤：保留命中节点及其全部祖先 */
@@ -61,6 +63,7 @@ interface NodeProps {
   toggle: (path: string) => void;
   onSelect: (path: string) => void;
   purposes: Map<string, DirPurpose>;
+  orders?: Map<string, number>;
 }
 
 const TreeNode = memo(function TreeNode({
@@ -71,12 +74,14 @@ const TreeNode = memo(function TreeNode({
   toggle,
   onSelect,
   purposes,
+  orders,
 }: NodeProps) {
   const { t } = useTranslation(['viewer', 'analysis']);
   const name = node.path.split('/').pop() ?? node.path;
   const isDir = node.type === 'dir';
   const isOpen = expanded.has(node.path);
   const purpose = isDir ? purposes.get(node.path) : undefined;
+  const order = isDir ? undefined : orders?.get(node.path);
 
   return (
     <>
@@ -95,6 +100,16 @@ const TreeNode = memo(function TreeNode({
         <span className="w-3 shrink-0 text-center" style={{ color: 'var(--c-text-2)' }}>
           {isDir ? (isOpen ? '▾' : '▸') : ''}
         </span>
+        {order !== undefined && (
+          <span
+            className="shrink-0 rounded px-1 font-mono text-[10px] leading-4"
+            style={{ background: 'var(--c-bg-3)', color: 'var(--c-primary)' }}
+            title={t('analysis:readingOrderBadge', { order })}
+            data-reading-order={order}
+          >
+            {order}
+          </span>
+        )}
         <span className="truncate" style={{ color: isDir ? 'var(--c-text)' : 'var(--c-text-2)' }}>
           {name}
         </span>
@@ -117,13 +132,14 @@ const TreeNode = memo(function TreeNode({
           toggle={toggle}
           onSelect={onSelect}
           purposes={purposes}
+          orders={orders}
         />
       ))}
     </>
   );
 });
 
-export default function FileTree({ tree, activePath, onSelect }: FileTreeProps) {
+export default function FileTree({ tree, activePath, onSelect, orderByPath }: FileTreeProps) {
   const { t } = useTranslation('viewer');
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -196,6 +212,7 @@ export default function FileTree({ tree, activePath, onSelect }: FileTreeProps) 
               toggle={toggle}
               onSelect={onSelect}
               purposes={purposes}
+              orders={orderByPath}
             />
           ))
         )}

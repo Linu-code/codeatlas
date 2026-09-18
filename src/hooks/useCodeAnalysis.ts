@@ -22,12 +22,20 @@ import { flattenFiles } from '../sources/tree';
 import { langOfPath, parseCode } from '../analysis/parser';
 import { extractFile, type FileAnalysis } from '../analysis/symbols';
 import { buildCallGraph, type CallGraph } from '../analysis/callgraph';
-import { toMermaid } from '../analysis/mermaid';
+import { toClassMermaid, toModuleMermaid, toMermaid } from '../analysis/mermaid';
 import { buildScopeIndex, type ScopeIndex } from '../analysis/scopeGraph';
 import { computeMetrics, healthScore, type FileMetrics } from '../analysis/metrics';
 import { MAX_ANALYSIS_FILES, MAX_GRAPH_NODES, MAX_SOURCE_BYTES } from '../analysis/limits';
+import { buildReadingPath, type ReadingPath } from '../analysis/readingPath';
+import { buildModuleGraph, groupByLayer, type LayerGroup, type ModuleGraph } from '../analysis/moduleGraph';
+import { findCycles, type CycleReport } from '../analysis/cycles';
+import { buildClassGraph, MAX_CLASS_NODES, type ClassGraph } from '../analysis/classGraph';
+import { annotateDirectories } from '../analysis/directories';
 
 const READ_CONCURRENCY = 8;
+
+/** 模块依赖图超过该节点数就不渲染 Mermaid（图会不可读且渲染变慢），改用表格 */
+const MAX_MODULE_DIAGRAM_NODES = 40;
 
 export interface AnalysisState {
   running: boolean;
@@ -39,6 +47,17 @@ export interface AnalysisState {
   index: ScopeIndex | null;
   graph: CallGraph | null;
   mermaid: string;
+  // ---------- N2：阅读路线 ----------
+  readingPath: ReadingPath | null;
+  // ---------- N3：架构视图 ----------
+  moduleGraph: ModuleGraph | null;
+  cycles: CycleReport | null;
+  classGraph: ClassGraph | null;
+  layers: LayerGroup[];
+  /** 模块依赖图 Mermaid（节点过多时为空串，面板改用表格） */
+  moduleMermaid: string;
+  /** 类图 Mermaid（无类或超限时为空串） */
+  classMermaid: string;
   /** 没有找到可分析的文件（仓库中不存在受支持语言的源文件） */
   empty: boolean;
   error: RepoError | null;
@@ -53,6 +72,13 @@ const INITIAL: AnalysisState = {
   index: null,
   graph: null,
   mermaid: '',
+  readingPath: null,
+  moduleGraph: null,
+  cycles: null,
+  classGraph: null,
+  layers: [],
+  moduleMermaid: '',
+  classMermaid: '',
   empty: false,
   error: null,
 };
@@ -154,13 +180,27 @@ export function useCodeAnalysis() {
       await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, targets.length) }, worker));
       if (runId !== runIdRef.current) return stateRef.current;
 
-      // ---------- 派生三种结果 ----------
+      // ---------- 派生分析结果 ----------
       const graph = buildCallGraph(results, { maxNodes: MAX_GRAPH_NODES });
       const index = buildScopeIndex(results);
       const metrics = [...metricsByPath.values()].sort(
         (a, b) => b.maxFunctionComplexity - a.maxFunctionComplexity || a.path.localeCompare(b.path),
       );
       const health = healthScore(metrics);
+
+      // N2：阅读路线（依赖图 PageRank + 入/出度角色）
+      const readingPath = buildReadingPath(results, index);
+
+      // N3：架构视图（模块依赖图 / 循环依赖 / 类图 / 分层）
+      // 目录用途标注在此重算一次（纯函数、O(n)），让 AnalysisState 自包含，
+      // 面板不必再依赖外部传入的 dirPurposes。
+      const dirPurposes = annotateDirectories(tree);
+      const moduleGraph = buildModuleGraph(results, dirPurposes);
+      const cycles = findCycles(
+        results.map((f) => f.path),
+        moduleGraph.fileEdges,
+      );
+      const classGraph = buildClassGraph(results);
 
       signatureRef.current = signature;
       const next: AnalysisState = {
@@ -172,6 +212,19 @@ export function useCodeAnalysis() {
         index,
         graph,
         mermaid: graph.nodes.length > 0 ? toMermaid(graph) : '',
+        readingPath,
+        moduleGraph,
+        cycles,
+        classGraph,
+        layers: groupByLayer(moduleGraph),
+        moduleMermaid:
+          moduleGraph.nodes.length > 0 && moduleGraph.nodes.length <= MAX_MODULE_DIAGRAM_NODES
+            ? toModuleMermaid(moduleGraph)
+            : '',
+        classMermaid:
+          classGraph.nodes.length > 0 && classGraph.nodes.length <= MAX_CLASS_NODES
+            ? toClassMermaid(classGraph)
+            : '',
         empty: results.length === 0,
         error: null,
       };

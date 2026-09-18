@@ -13,7 +13,7 @@
  */
 
 import type Parser from 'web-tree-sitter';
-import { firstChildOfType, hasWord, modifiersText, type LangHandler, type SymbolKind } from './types';
+import { firstChildOfType, hasWord, modifiersText, normalizeTypeName, type LangHandler, type SymbolKind } from './types';
 
 const CLASS_NODES = new Set(['class_declaration', 'object_declaration', 'companion_object']);
 /** 类体容器 —— 其中的函数视为 method */
@@ -81,6 +81,23 @@ export const kotlinHandler: LangHandler = {
   },
 
   calleeName: callTargetName,
+
+  /**
+   * 继承关系：每个 delegation_specifier 是一项。
+   * 带构造调用（`Base()`）的是父类，不带括号的是接口 —— 这正是 Kotlin 语法本身的区分方式。
+   */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const specs = node.namedChildren.filter((c) => c.type === 'delegation_specifier');
+    const ext: string[] = [];
+    const impl: string[] = [];
+    for (const spec of specs) {
+      const name = normalizeTypeName(spec.text);
+      if (!name) continue;
+      if (/\(\s*\)\s*$/.test(spec.text.trim())) ext.push(name);
+      else impl.push(name);
+    }
+    return { extends: ext, implements: impl };
+  },
 
   entersScope(node): boolean {
     return SCOPE_NODES.has(node.type);

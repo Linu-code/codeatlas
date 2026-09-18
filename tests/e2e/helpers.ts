@@ -99,6 +99,54 @@ export async function buildFixtureZip(): Promise<string> {
   return zipPath;
 }
 
+/**
+ * 类图夹具：单独一个 ZIP，避免改动主夹具而影响既有的度量/调用图断言。
+ * 内容刻意包含继承 + 接口实现 + 跨文件引用，用于验证 N3 类图。
+ */
+const CLASS_FIXTURE_FILES: Record<string, string> = {
+  'README.md': '# Class fixture\n\n用于验证 N3 类图（继承 / 实现）的小型夹具。\n',
+  'src/base.ts': `export class Base {
+  greet(): string {
+    return 'base';
+  }
+}
+`,
+  'src/user.ts': `import { Base } from './base';
+
+export interface IGreeter {
+  greet(): string;
+}
+
+export class User extends Base implements IGreeter {
+  greet(): string {
+    return 'user';
+  }
+}
+`,
+  'lib/plugin.py': `class PluginBase:
+    pass
+
+
+class MyPlugin(PluginBase):
+    def run(self):
+        return 1
+`,
+};
+
+/** 生成类图夹具 ZIP */
+export async function buildClassFixtureZip(): Promise<string> {
+  mkdirSync(FIXTURE_DIR, { recursive: true });
+  const zipPath = path.join(FIXTURE_DIR, 'fixture-classes.zip');
+
+  const zip = new JSZip();
+  for (const [filePath, content] of Object.entries(CLASS_FIXTURE_FILES)) {
+    zip.file(filePath, content);
+  }
+  const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  writeFileSync(zipPath, buffer);
+  return zipPath;
+}
+
 export const FIXTURE_FILES_LIST = Object.keys(FIXTURE_FILES);
 
 /** 上传 ZIP 并等待文件树出现 */

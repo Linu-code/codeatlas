@@ -11,7 +11,7 @@
  *   · 可见性在 modifiers 节点里（private / fileprivate / public / internal）
  */
 
-import { fieldText, firstChildOfType, hasAncestor, hasWord, modifiersText, type LangHandler, type SymbolKind } from './types';
+import { fieldText, firstChildOfType, hasAncestor, hasWord, modifiersText, normalizeTypeName, type LangHandler, type SymbolKind } from './types';
 
 const CLASS_NODES = new Set(['class_declaration', 'protocol_declaration']);
 /** 类体容器 —— 其中的函数视为 method */
@@ -84,6 +84,23 @@ export const swiftHandler: LangHandler = {
       null;
     if (!suffix) return null;
     return firstChildOfType(suffix, SIMPLE_IDS)?.text ?? fieldText(suffix, 'suffix');
+  },
+
+  /**
+   * 继承关系：inheritance_specifier 的 inherits_from 字段。
+   * class 的第一项是父类、其余是协议；struct / enum 的项全部按协议处理。
+   */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const specs = node.namedChildren.filter((c) => c.type === 'inheritance_specifier');
+    if (specs.length === 0) return { extends: [], implements: [] };
+    const names = specs
+      .map((c) => normalizeTypeName(c.childForFieldName('inherits_from')?.text ?? c.text))
+      .filter(Boolean);
+    const isClass = /^class\b/.test(node.text.trim());
+    if (isClass && names.length > 0) {
+      return { extends: [names[0]], implements: names.slice(1) };
+    }
+    return { extends: [], implements: names };
   },
 
   entersScope(node): boolean {

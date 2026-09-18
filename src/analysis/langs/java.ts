@@ -10,7 +10,7 @@
  *   · 接口成员不写修饰符时隐式 public；类成员不写修饰符时是包级私有
  */
 
-import { fieldText, hasAncestor, hasWord, modifiersText, type LangHandler, type SymbolKind } from './types';
+import { fieldText, hasAncestor, hasWord, modifiersText, splitTypeNames, type LangHandler, type SymbolKind } from './types';
 
 /** 类型定义节点（全部映射为 class） */
 const CLASS_NODES = new Set([
@@ -76,6 +76,20 @@ export const javaHandler: LangHandler = {
     }
     // super() / this() 没有独立被调名
     return null;
+  },
+
+  /** 继承关系：类用 superclass + super_interfaces；接口用 extends_interfaces */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const ext: string[] = [];
+    const impl: string[] = [];
+    for (const child of node.namedChildren) {
+      if (child.type === 'superclass') {
+        ext.push(...splitTypeNames(child.text.replace(/^extends\s+/, '')));
+      } else if (child.type === 'super_interfaces' || child.type === 'extends_interfaces') {
+        impl.push(...splitTypeNames(child.text.replace(/^(implements|extends)\s+/, '')));
+      }
+    }
+    return { extends: ext, implements: impl };
   },
 
   entersScope(node): boolean {

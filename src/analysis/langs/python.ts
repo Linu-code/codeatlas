@@ -10,7 +10,7 @@
  */
 
 import type Parser from 'web-tree-sitter';
-import { fieldText, flatten, hasAncestor, type LangHandler, type SymbolKind } from './types';
+import { fieldText, flatten, hasAncestor, normalizeTypeName, type LangHandler, type SymbolKind } from './types';
 
 const FUNC_NODES = new Set(['function_definition']);
 const CLASS_NODES = new Set(['class_definition']);
@@ -58,6 +58,20 @@ export const pythonHandler: LangHandler = {
     // obj.foo() → 属性段
     if (fn.type === 'attribute') return fieldText(fn, 'attribute');
     return null;
+  },
+
+  /**
+   * 继承关系：`class User(Base, Mixin)` 的 argument_list 就是基类列表。
+   * Python 不区分父类与 Mixin / 协议，统一归入 extends；`metaclass=` 这类关键字参数自动忽略。
+   */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const args = node.namedChildren.find((c) => c.type === 'argument_list');
+    if (!args) return { extends: [], implements: [] };
+    const ext = args.namedChildren
+      .filter((c) => c.type === 'identifier' || c.type === 'attribute')
+      .map((c) => normalizeTypeName(c.text))
+      .filter(Boolean);
+    return { extends: ext, implements: [] };
   },
 
   entersScope(node): boolean {

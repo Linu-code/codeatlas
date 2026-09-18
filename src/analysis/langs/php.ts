@@ -11,7 +11,7 @@
  */
 
 import type Parser from 'web-tree-sitter';
-import { fieldText, hasWord, modifiersText, type LangHandler, type SymbolKind } from './types';
+import { fieldText, hasWord, modifiersText, splitTypeNames, type LangHandler, type SymbolKind } from './types';
 
 const CLASS_NODES = new Set([
   'class_declaration',
@@ -83,6 +83,20 @@ export const phpHandler: LangHandler = {
     }
     // function_call_expression 用 function 字段；member/scoped 调用用 name 字段
     return fieldText(node, 'name') ?? fieldText(node, 'function');
+  },
+
+  /** 继承关系：base_clause（extends）与 class_interface_clause（implements） */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const ext: string[] = [];
+    const impl: string[] = [];
+    for (const child of node.namedChildren) {
+      if (child.type === 'base_clause') {
+        ext.push(...splitTypeNames(child.text.replace(/^extends\s+/, '')));
+      } else if (child.type === 'class_interface_clause') {
+        impl.push(...splitTypeNames(child.text.replace(/^implements\s+/, '')));
+      }
+    }
+    return { extends: ext, implements: impl };
   },
 
   entersScope(node): boolean {

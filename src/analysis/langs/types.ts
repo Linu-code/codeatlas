@@ -71,8 +71,23 @@ export interface FileAnalysis {
   /** 全部标识符引用（含定义名与调用，由 scopeGraph 去重） */
   references: RefSite[];
   imports: string[];
+  /**
+   * 类/接口的父子关系（N3 类图的数据源）。
+   * 可选：语言未实现 superTypes，或测试夹具未提供时为 undefined。
+   */
+  classRelations?: ClassRelation[];
   /** tree-sitter 报告语法错误（容错解析，仍产出部分结果） */
   hasError: boolean;
+}
+
+/** 类 / 接口的继承与实现关系 */
+export interface ClassRelation {
+  name: string;
+  /** 继承的父类 / 基类 */
+  extends: string[];
+  /** 实现的接口 / 协议 */
+  implements: string[];
+  line: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +139,13 @@ export interface LangHandler {
 
   /** 提取签名时使用的节点（默认节点自身；如 JS 箭头函数取其 value） */
   signatureNode?(node: Parser.SyntaxNode): Parser.SyntaxNode;
+
+  /**
+   * 类 / 接口的父子类型名（N3 类图）。
+   * 未实现该能力的语言（Go / Rust / C）返回 undefined，即不参与类图 —— 这是有意的：
+   * 与其用启发式猜出错误的关系，不如明确不显示。
+   */
+  superTypes?(node: Parser.SyntaxNode): { extends: string[]; implements: string[] } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +198,37 @@ export function modifiersText(node: Parser.SyntaxNode, types: ReadonlySet<string
 /** 文本中是否含某个独立词（避免 "private" 命中 "privateThing"） */
 export function hasWord(text: string, word: string): boolean {
   return text.split(/\W+/).includes(word);
+}
+
+/**
+ * 把一段类型名列表拆成独立名字并规范化。
+ *
+ * 处理各语言的写法差异：
+ *    /  /  /
+ *   （Kotlin 构造调用）/ （C++ 访问修饰）
+ * 统一归一到最后一个标识符段，便于跨文件按名字匹配。
+ */
+export function splitTypeNames(raw: string): string[] {
+  const out: string[] = [];
+  for (const part of raw.split(',')) {
+    const name = normalizeTypeName(part);
+    if (name) out.push(name);
+  }
+  return out;
+}
+
+/** 单个类型名规范化：去泛型、数组、参数括号、命名空间前缀与非标识符字符 */
+export function normalizeTypeName(raw: string): string {
+  let t = raw
+    .replace(/\b(public|protected|private|virtual|static|abstract|final|sealed)\b/g, ' ')
+    .replace(/<[^<>]*>/g, ' ')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\([^()]*\)/g, ' ')
+    .trim();
+  // 取最后一段（com.example.User / Foo::Bar / ns.Bar → Bar）
+  const segments = t.split(/[.:\s]+/).filter(Boolean);
+  const last = segments[segments.length - 1] ?? '';
+  return last.replace(/[^A-Za-z0-9_$]/g, '');
 }
 
 /** 压平空白并截断 */

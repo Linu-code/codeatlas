@@ -14,6 +14,7 @@ import { handlerFor } from './langs';
 import {
   signatureFrom,
   type CallRef,
+  type ClassRelation,
   type FileAnalysis,
   type RefSite,
   type SymbolDef,
@@ -21,7 +22,7 @@ import {
 } from './langs/types';
 
 // 对外 API 保持原样：既有 `import type { SymbolDef } from './symbols'` 继续可用
-export type { SymbolDef, CallRef, RefSite, FileAnalysis, SymbolKind };
+export type { SymbolDef, CallRef, RefSite, FileAnalysis, SymbolKind, ClassRelation };
 
 /**
  * 提取单个文件的符号信息。
@@ -36,6 +37,7 @@ export function extractFile(root: Parser.SyntaxNode, path: string, language: Lan
   const calls: CallRef[] = [];
   const imports: string[] = [];
   const references: RefSite[] = [];
+  const classRelations: ClassRelation[] = [];
 
   /** 当前所在函数（用于把调用归属到调用方） */
   const stack: string[] = [];
@@ -73,6 +75,19 @@ export function extractFile(root: Parser.SyntaxNode, path: string, language: Lan
           signature: signatureFrom(sigNode),
           exported: handler.isExported(node),
         });
+
+        // 类 / 接口的继承与实现关系（N3 类图的数据源）
+        if (kind === 'class' && handler.superTypes) {
+          const supers = handler.superTypes(node);
+          if (supers && (supers.extends.length > 0 || supers.implements.length > 0)) {
+            classRelations.push({
+              name,
+              extends: supers.extends,
+              implements: supers.implements,
+              line: node.startPosition.row + 1,
+            });
+          }
+        }
       }
     }
 
@@ -119,6 +134,7 @@ export function extractFile(root: Parser.SyntaxNode, path: string, language: Lan
     calls,
     references,
     imports,
+    classRelations,
     hasError: root.hasError,
   };
 }

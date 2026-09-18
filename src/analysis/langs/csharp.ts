@@ -11,7 +11,7 @@
  *   · 未写修饰符时：类成员默认 private，接口成员隐式 public
  */
 
-import { fieldText, hasAncestor, hasWord, modifiersText, type LangHandler, type SymbolKind } from './types';
+import { fieldText, hasAncestor, hasWord, modifiersText, splitTypeNames, type LangHandler, type SymbolKind } from './types';
 
 const CLASS_NODES = new Set([
   'class_declaration',
@@ -88,6 +88,16 @@ export const csharpHandler: LangHandler = {
     if (fn.type === 'member_access_expression') return fieldText(fn, 'name');
     if (fn.type === 'generic_name') return fieldText(fn, 'name') ?? fn.text;
     return null;
+  },
+
+  /**
+   * 继承关系：base_list（`: Base, IGreeter`）。
+   * C# 语法树不区分基类与接口，统一归入 extends（面板会如实标注这一点）。
+   */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const base = node.namedChildren.find((c) => c.type === 'base_list');
+    if (!base) return { extends: [], implements: [] };
+    return { extends: splitTypeNames(base.text.replace(/^:/, '')), implements: [] };
   },
 
   entersScope(node): boolean {

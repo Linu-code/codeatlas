@@ -6,7 +6,7 @@
  */
 
 import type Parser from 'web-tree-sitter';
-import { fieldText, hasAncestor, type LangHandler, type SymbolKind } from './types';
+import { fieldText, hasAncestor, splitTypeNames, type LangHandler, type SymbolKind } from './types';
 
 /** 直接构成"函数/类"定义的节点 */
 const DEF_NODES = new Set([
@@ -64,6 +64,22 @@ export const javascriptHandler: LangHandler = {
     // obj.foo() / obj.foo.bar() → 末段属性名
     if (fn.type === 'member_expression') return fieldText(fn, 'property');
     return null;
+  },
+
+  /** 继承关系：class_heritage 下分为 extends_clause 与 implements_clause */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const heritage = node.namedChildren.find((c) => c.type === 'class_heritage');
+    if (!heritage) return { extends: [], implements: [] };
+    const ext: string[] = [];
+    const impl: string[] = [];
+    for (const clause of heritage.namedChildren) {
+      if (clause.type === 'extends_clause') {
+        ext.push(...splitTypeNames(clause.text.replace(/^extends\s+/, '')));
+      } else if (clause.type === 'implements_clause') {
+        impl.push(...splitTypeNames(clause.text.replace(/^implements\s+/, '')));
+      }
+    }
+    return { extends: ext, implements: impl };
   },
 
   entersScope(node): boolean {

@@ -27,6 +27,10 @@ import CallGraphPanel from './components/CallGraphPanel';
 import MetricsPanel from './components/MetricsPanel';
 import SearchPanel from './components/SearchPanel';
 import ReferencesPanel from './components/ReferencesPanel';
+import ReadingPathPanel from './components/ReadingPathPanel';
+import OutlinePanel from './components/OutlinePanel';
+import ArchitecturePanel from './components/ArchitecturePanel';
+import CommandPalette, { type PaletteItem } from './components/CommandPalette';
 import ContextPackDialog from './components/ContextPackDialog';
 import SettingsDialog from './components/SettingsDialog';
 import DragOverlay from './components/DragOverlay';
@@ -100,6 +104,11 @@ export default function App() {
   const [packGenerating, setPackGenerating] = useState(false);
   const [dropping, setDropping] = useState(false);
   const [dropInvalid, setDropInvalid] = useState(false);
+  /** 命令面板（N2）：Ctrl+K 全量入口，Ctrl+T 只搜符号 */
+  const [palette, setPalette] = useState<{ open: boolean; mode: 'all' | 'symbol' }>({
+    open: false,
+    mode: 'all',
+  });
 
   const fs = repo.fs;
   const meta = fs?.meta;
@@ -111,6 +120,15 @@ export default function App() {
 
   /** 目录用途标注（供文件树图标与上下文包使用） */
   const dirPurposes = useMemo(() => annotateDirectories(repo.tree), [repo.tree]);
+
+  /** 目录用途的本地化文案（文件树 / 阅读路线 / 架构分层共用同一份） */
+  const dirPurposeLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    for (const p of dirPurposes.values()) {
+      labels[p.key] = t(`analysis:purpose.${p.key}` as never) as unknown as string;
+    }
+    return labels;
+  }, [dirPurposes, t]);
 
   // 打开新项目时重置分析结果与面板
   useEffect(() => {
@@ -204,7 +222,7 @@ export default function App() {
     [ensureAnalysis, openFileAt, repo.activeTab],
   );
 
-  // F12：选中文本 → 转到定义
+  // F12：选中文本 → 转到定义；Ctrl/Cmd+K 命令面板；Ctrl/Cmd+T 符号搜索
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'F12') {
@@ -219,11 +237,26 @@ export default function App() {
         if (fs) {
           setPanel('search');
         }
+        return;
+      }
+      // Ctrl/Cmd + K → 命令面板（文件 / 符号 / 命令统一入口）
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (fs) setPalette({ open: true, mode: 'all' });
+        return;
+      }
+      // Ctrl/Cmd + T → 符号搜索（复用 scopeGraph 索引）
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        if (!fs) return;
+        setPalette({ open: true, mode: 'symbol' });
+        // 符号条目需要索引：没分析过就先跑一次，结果到达后条目会自动出现
+        if (!analysis.getState().index) void analysis.analyze(fs, repo.tree);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [fs, handleSymbol]);
+  }, [analysis, fs, handleSymbol, repo.tree]);
 
   // ---------- 面板切换 ----------
   const togglePanel = useCallback(
@@ -234,7 +267,15 @@ export default function App() {
       }
       setPanel(target);
       if (!fs) return;
-      if (target === 'graph' || target === 'metrics' || target === 'references') {
+      // 这些面板都依赖分析结果，首次打开时按需触发一次分析
+      if (
+        target === 'graph' ||
+        target === 'metrics' ||
+        target === 'references' ||
+        target === 'reading' ||
+        target === 'outline' ||
+        target === 'architecture'
+      ) {
         await analysis.analyze(fs, repo.tree);
       }
     },
@@ -249,10 +290,6 @@ export default function App() {
       // 用 analyze() 的返回值（权威结果），而不是可能过期的闭包 state
       const bundle = await analysis.analyze(fs, repo.tree);
       if (!bundle.index) return;
-      const labels: Record<string, string> = {};
-      for (const p of dirPurposes.values()) {
-        labels[p.key] = t(`analysis:purpose.${p.key}` as never) as unknown as string;
-      }
       setPack(
         generateContextPack({
           repoName: fs.meta.name,
@@ -262,14 +299,20 @@ export default function App() {
           metrics: bundle.metrics,
           treePaths: flattenFiles(repo.tree),
           dirPurposes,
-          purposeLabels: labels,
+          purposeLabels: dirPurposeLabels,
           maxTokens: config.maxTokens,
+          // N2：把建议阅读路线一并写入（已存在则写入，未分析则本次为空）
+          readingPath: bundle.readingPath?.steps.map((s) => ({
+            path: s.path,
+            order: s.order,
+            role: s.role,
+          })),
         }),
       );
     } finally {
       setPackGenerating(false);
     }
-  }, [analysis, config.maxTokens, dirPurposes, fs, repo.tree, t]);
+  }, [analysis, config.maxTokens, dirPurposeLabels, dirPurposes, fs, repo.tree]);
 
   // ---------- 资源前缀 ----------
   const rawBase = useMemo(() => {
@@ -300,6 +343,147 @@ export default function App() {
 
   const refEntry = refSymbol && analysis.state.index ? findSymbol(analysis.state.index, refSymbol) : null;
   const stats = analysis.state.index ? indexStats(analysis.state.index) : null;
+
+  /** 当前打开文件的分析结果（大纲面板用）；未纳入分析时为 null */
+  const activeFileAnalysis = useMemo(
+    () => analysis.state.files.find((f) => f.path === repo.activeTab) ?? null,
+    [analysis.state.files, repo.activeTab],
+  );
+
+  // ---------- 命令面板条目（N2）----------
+  // 三类条目统一入口：命令 / 文件 / 符号。条目自带 onRun，面板本身保持"哑"组件。
+  const paletteItems = useMemo<PaletteItem[]>(() => {
+    const items: PaletteItem[] = [];
+
+    const addPanel = (panel: Exclude<BottomPanel, 'none'>, label: string, keywords: string) => {
+      items.push({
+        id: `cmd:${panel}`,
+        section: 'command',
+        label,
+        keywords,
+        onRun: () => void togglePanel(panel),
+      });
+    };
+
+    if (fs) {
+      addPanel('graph', t('analysis:callGraph'), 'call graph 调用关系图');
+      addPanel('metrics', t('analysis:metrics'), 'metrics 度量');
+      addPanel('reading', t('analysis:readingPath'), 'reading path 阅读路线');
+      addPanel('architecture', t('analysis:architecture'), 'architecture 架构');
+      addPanel('outline', t('analysis:outline'), 'outline 大纲');
+      addPanel('search', t('analysis:globalSearch'), 'search grep 搜索');
+      items.push({
+        id: 'cmd:context-pack',
+        section: 'command',
+        label: t('analysis:contextPackGenerate'),
+        keywords: 'context pack 上下文包',
+        onRun: () => {
+          setPackOpen(true);
+          if (!pack) void generatePack();
+        },
+      });
+      items.push({
+        id: 'cmd:refresh',
+        section: 'command',
+        label: t('common:refresh'),
+        keywords: 'refresh reload 刷新',
+        onRun: () =>
+          void (async () => {
+            await repo.refresh();
+            analysis.reset();
+          })(),
+      });
+    }
+
+    const themeLabels: Record<ThemeId, string> = {
+      light: t('common:themeLight'),
+      dark: t('common:themeDark'),
+      system: t('common:themeSystem'),
+      atlas: t('common:themeAtlas'),
+    };
+    for (const theme of ['light', 'dark', 'system', 'atlas'] as ThemeId[]) {
+      items.push({
+        id: `cmd:theme:${theme}`,
+        section: 'command',
+        label: `${t('common:theme')} · ${themeLabels[theme]}`,
+        keywords: `theme ${theme} 主题`,
+        onRun: () => {
+          patchConfig({ theme });
+          applyTheme(theme);
+        },
+      });
+    }
+
+    const langLabels: [Language, string][] = [
+      ['zh', t('common:langZh')],
+      ['en', t('common:langEn')],
+      ['ja', t('common:langJa')],
+    ];
+    for (const [code, label] of langLabels) {
+      items.push({
+        id: `cmd:lang:${code}`,
+        section: 'command',
+        label: `${t('common:language')} · ${label}`,
+        keywords: `language ${code} 语言`,
+        onRun: () => {
+          void i18n.changeLanguage(code);
+          patchConfig({ language: code });
+        },
+      });
+    }
+
+    items.push({
+      id: 'cmd:settings',
+      section: 'command',
+      label: t('common:settings'),
+      keywords: 'settings preferences 设置',
+      onRun: () => setSettingsOpen(true),
+    });
+
+    // 文件：label 用文件名，keywords 用完整路径（既能按名字也能按路径搜）
+    if (fs) {
+      for (const path of flattenFiles(repo.tree)) {
+        items.push({
+          id: `file:${path}`,
+          section: 'file',
+          label: path.split('/').pop() ?? path,
+          hint: path,
+          keywords: path,
+          onRun: () => void repo.openFile(path),
+        });
+      }
+    }
+
+    // 符号：来自符号索引（未分析时为空，Ctrl+T 会先触发分析）
+    const index = analysis.state.index;
+    if (index) {
+      for (const entry of index.symbols.values()) {
+        const def = entry.definitions[0];
+        if (!def) continue;
+        items.push({
+          id: `sym:${entry.name}`,
+          section: 'symbol',
+          label: entry.name,
+          hint: `${def.file}:${def.line}`,
+          keywords: `${entry.name} ${def.file}`,
+          onRun: () => void openFileAt(def.file, def.line),
+        });
+      }
+    }
+
+    return items;
+  }, [
+    analysis,
+    fs,
+    generatePack,
+    i18n,
+    openFileAt,
+    pack,
+    patchConfig,
+    repo,
+    t,
+    togglePanel,
+  ]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -356,7 +540,12 @@ export default function App() {
 
       <div className="flex min-h-0 flex-1">
         {repo.tree.length > 0 && (
-          <FileTree tree={repo.tree} activePath={repo.activeTab} onSelect={(p) => void repo.openFile(p)} />
+          <FileTree
+            tree={repo.tree}
+            activePath={repo.activeTab}
+            onSelect={(p) => void repo.openFile(p)}
+            orderByPath={analysis.state.readingPath?.orderByPath}
+          />
         )}
 
         <main className="flex min-w-0 flex-1 flex-col">
@@ -464,6 +653,48 @@ export default function App() {
               onOpenFile={(file, line) => void openFileAt(file, line)}
             />
           )}
+
+          {panel === 'reading' && (
+            <ReadingPathPanel
+              path={analysis.state.readingPath}
+              running={analysis.state.running}
+              onOpenFile={(file, line) => void openFileAt(file, line)}
+              onAnalyze={() => fs && void analysis.analyze(fs, repo.tree, { force: true })}
+              onClose={() => setPanel('none')}
+              onWriteToContextPack={() => {
+                setPackOpen(true);
+                void generatePack();
+              }}
+              dirLabels={dirPurposeLabels}
+            />
+          )}
+
+          {panel === 'outline' && (
+            <OutlinePanel
+              file={repo.activeTab}
+              definitions={activeFileAnalysis?.definitions ?? null}
+              running={analysis.state.running}
+              onOpenFile={(file, line) => void openFileAt(file, line)}
+              onAnalyze={() => fs && void analysis.analyze(fs, repo.tree, { force: true })}
+              onClose={() => setPanel('none')}
+            />
+          )}
+
+          {panel === 'architecture' && (
+            <ArchitecturePanel
+              graph={analysis.state.moduleGraph}
+              cycles={analysis.state.cycles}
+              classGraph={analysis.state.classGraph}
+              layers={analysis.state.layers}
+              moduleMermaid={analysis.state.moduleMermaid}
+              classMermaid={analysis.state.classMermaid}
+              running={analysis.state.running}
+              onAnalyze={() => fs && void analysis.analyze(fs, repo.tree, { force: true })}
+              onOpenFile={(file, line) => void openFileAt(file, line)}
+              onClose={() => setPanel('none')}
+              purposeLabels={dirPurposeLabels}
+            />
+          )}
         </main>
       </div>
 
@@ -527,6 +758,13 @@ export default function App() {
       />
 
       <DragOverlay active={dropping || dropInvalid} invalid={dropInvalid} />
+
+      <CommandPalette
+        open={palette.open}
+        mode={palette.mode}
+        items={paletteItems}
+        onClose={() => setPalette((prev) => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }

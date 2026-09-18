@@ -33,6 +33,11 @@ export interface ContextPackInput {
   purposeLabels?: Record<string, string>;
   /** token 预算（对应 --max-tokens） */
   maxTokens: number;
+  /**
+   * 建议阅读路线（N2）。传入后会在目录结构之后追加「建议阅读路线」章节，
+   * 让读者（人或 AI）先知道"从哪读起"，而不是面对一堆并列符号。
+   */
+  readingPath?: ReadingPathEntry[];
   /** 语言标签，用于输出头部说明 */
   languageLabel?: string;
 }
@@ -146,6 +151,38 @@ function renderFileTree(input: ContextPackInput, maxFiles: number): { text: stri
   return { text: sections.join('\n\n'), included: shown.length };
 }
 
+/** 阅读路线条目（N2：由 readingPath.ts 生成，此处只关心渲染所需字段） */
+export interface ReadingPathEntry {
+  path: string;
+  order: number;
+  role: 'entry' | 'core' | 'support' | 'leaf';
+}
+
+/** 角色 → 中文标签（上下文包是固定语言产物，与其它章节保持一致） */
+const READING_ROLE_LABEL: Record<ReadingPathEntry['role'], string> = {
+  entry: '入口',
+  core: '枢纽',
+  support: '中间层',
+  leaf: '末端',
+};
+
+/** 渲染「建议阅读路线」章节；未提供路线时返回 null（不产出空章节） */
+function renderReadingPath(input: ContextPackInput): string | null {
+  const steps = input.readingPath;
+  if (!steps || steps.length === 0) return null;
+  const lines = [
+    '## 建议阅读路线',
+    '',
+    '> 按依赖图的角色与 PageRank 排序：入口 → 枢纽 → 中间层 → 末端。',
+    '> 依赖关系由本地静态分析得出，顺序可复现。',
+    '',
+  ];
+  for (const step of steps) {
+    lines.push(`${step.order}. \`${step.path}\` — ${READING_ROLE_LABEL[step.role]}`);
+  }
+  return lines.join('\n');
+}
+
 /** 第 4+5 步：按预算裁剪并格式化 */
 export function generateContextPack(input: ContextPackInput): ContextPack {
   const budget = input.maxTokens;
@@ -175,6 +212,8 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
 
   const treeBlock = renderFileTree(input, 60);
 
+  const readingBlock = renderReadingPath(input);
+
   const callSummary = renderCallSummary(input, ranked);
 
   // 符号区：用二分搜索找"最大可容纳符号数"
@@ -191,6 +230,8 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
   const assemble = (count: number, withTree: boolean): { markdown: string; included: number } => {
     const parts = [header];
     if (withTree) parts.push('## 目录结构', treeBlock.text);
+    // 阅读路线紧跟在目录结构之后：先告诉读者"从哪读起"，再给符号清单
+    if (readingBlock) parts.push(readingBlock);
     parts.push(renderSymbols(count), callSummary);
     const markdown = parts.join('\n\n');
     return { markdown, included: Math.min(count, ranked.length) };
@@ -257,6 +298,11 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
           }))
         : [],
       files: input.treePaths,
+      readingPath: (input.readingPath ?? []).map((s) => ({
+        order: s.order,
+        path: s.path,
+        role: s.role,
+      })),
       symbols: ranked.slice(0, included).map((s) => ({
         name: s.name,
         kind: s.kind,

@@ -11,7 +11,7 @@
  */
 
 import type Parser from 'web-tree-sitter';
-import { fieldText, hasAncestor, type LangHandler, type SymbolKind } from './types';
+import { fieldText, hasAncestor, splitTypeNames, type LangHandler, type SymbolKind } from './types';
 
 const CLASS_NODES = new Set(['class', 'module']);
 const METHOD_NODES = new Set(['method', 'singleton_method']);
@@ -75,6 +75,16 @@ export const rubyHandler: LangHandler = {
     if (!method) return null;
     // require / load 等属于导入，不算函数调用，避免污染调用图
     return REQUIRE_METHODS.has(method) ? null : method;
+  },
+
+  /**
+   * 继承关系：superclass（`class User < Base`）。
+   * `include Mixin` 是普通方法调用，语法上无法与继承区分，故不作为类图边。
+   */
+  superTypes(node): { extends: string[]; implements: string[] } | null {
+    const superNode = node.namedChildren.find((c) => c.type === 'superclass');
+    if (!superNode) return { extends: [], implements: [] };
+    return { extends: splitTypeNames(superNode.text.replace(/^</, '')), implements: [] };
   },
 
   entersScope(node): boolean {
