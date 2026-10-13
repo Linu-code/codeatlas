@@ -31,8 +31,20 @@ import { buildModuleGraph, groupByLayer, type LayerGroup, type ModuleGraph } fro
 import { findCycles, type CycleReport } from '../analysis/cycles';
 import { buildClassGraph, MAX_CLASS_NODES, type ClassGraph } from '../analysis/classGraph';
 import { annotateDirectories } from '../analysis/directories';
+import { hashText } from '../utils/hash';
+import { getCachedAnalysis, putCachedAnalysis } from '../analysis/analysisCache';
 
 const READ_CONCURRENCY = 8;
+
+/** 参与增量统计的标记：N4 用于在状态里暴露「缓存命中 / 重解析」计数 */
+export interface IncrementalStats {
+  /** 从缓存直接复用（未重新解析）的文件数 */
+  cached: number;
+  /** 重新解析的文件数 */
+  parsed: number;
+  /** 读取/解析失败被跳过的文件数 */
+  failed: number;
+}
 
 /** 模块依赖图超过该节点数就不渲染 Mermaid（图会不可读且渲染变慢），改用表格 */
 const MAX_MODULE_DIAGRAM_NODES = 40;
@@ -41,6 +53,8 @@ export interface AnalysisState {
   running: boolean;
   /** 已解析 / 待解析文件数 */
   progress: { parsed: number; total: number };
+  /** N4：增量分析统计（缓存命中 / 重解析 / 失败） */
+  incremental: IncrementalStats;
   files: FileAnalysis[];
   metrics: FileMetrics[];
   health: ReturnType<typeof healthScore> | null;
@@ -66,6 +80,7 @@ export interface AnalysisState {
 const INITIAL: AnalysisState = {
   running: false,
   progress: { parsed: 0, total: 0 },
+  incremental: { cached: 0, parsed: 0, failed: 0 },
   files: [],
   metrics: [],
   health: null,
@@ -143,6 +158,13 @@ export function useCodeAnalysis() {
       const results: FileAnalysis[] = [];
       const metricsByPath = new Map<string, FileMetrics>();
       let parsedCount = 0;
+      // N4：增量统计
+      let cachedCount = 0;
+      let failedCount = 0;
+      /** 本仓库的分析缓存命名空间（复用 repoKey：owner/repo@branch，本地源用 name） */
+      const cacheNs = fs.meta.source === 'github'
+        ? `${fs.meta.owner ?? ''}/${fs.meta.repo ?? ''}@${fs.meta.branch ?? 'HEAD'}`
+        : fs.meta.name;
 
       const queue = [...targets];
       const worker = async () => {
@@ -155,16 +177,32 @@ export function useCodeAnalysis() {
             if (code.length <= MAX_SOURCE_BYTES) {
               const lang = langOfPath(path);
               if (lang) {
+                const hash = hashText(code);
+                // ① 缓存命中：直接复用解析结果，跳过 AST 解析（大仓库核心加速）
+                if (!opts.force) {
+                  const cached = await getCachedAnalysis(cacheNs, hash, path);
+                  if (cached) {
+                    results.push(cached.analysis);
+                    if (cached.metrics) metricsByPath.set(path, cached.metrics);
+                    cachedCount++;
+                    continue;
+                  }
+                }
+                // ② 未命中：解析 + 度量，写回缓存供下次复用
                 const parsed = await parseCode(code, lang);
                 if (parsed) {
-                  results.push(extractFile(parsed.rootNode, path, lang));
+                  const fa = extractFile(parsed.rootNode, path, lang);
+                  results.push(fa);
                   // 度量必须用源码文本（SLOC 依赖行内容），紧随解析进行
-                  metricsByPath.set(path, computeMetrics(parsed.rootNode, path, lang, code));
+                  const fm = computeMetrics(parsed.rootNode, path, lang, code);
+                  metricsByPath.set(path, fm);
+                  if (!opts.force) void putCachedAnalysis(cacheNs, hash, fa, fm);
                 }
               }
             }
           } catch {
             // 读取/解析失败：跳过该文件
+            failedCount++;
           } finally {
             parsedCount++;
             if (runId === runIdRef.current) {
@@ -206,6 +244,7 @@ export function useCodeAnalysis() {
       const next: AnalysisState = {
         running: false,
         progress: { parsed: parsedCount, total: targets.length },
+        incremental: { cached: cachedCount, parsed: results.length - cachedCount, failed: failedCount },
         files: results,
         metrics,
         health,

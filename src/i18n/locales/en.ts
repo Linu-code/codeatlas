@@ -36,7 +36,7 @@ export const en = {
     saved: 'Saved',
     clearCache: 'Clear cache',
     cacheCleared: 'Cache cleared',
-    cacheUsage: 'Cached: {{trees}} trees / {{files}} files',
+    cacheUsage: 'Cached: {{trees}} trees / {{files}} files / {{analysis}} analysis results',
     githubToken: 'GitHub token (optional)',
     githubTokenHint: 'Only raises the API rate limit. Kept on this machine; never written to the config file or uploaded',
     maxTokens: 'AI context pack token budget',
@@ -107,6 +107,7 @@ export const en = {
     pickSymbolHint: 'Ctrl+Click an identifier in the code, or select text and press F12',
     indexing: 'Indexing...',
     indexStats: '{{symbols}} symbols · {{references}} references · {{files}} files parsed',
+    incrementalStats: '{{cached}} files from cache · {{parsed}} re-parsed',
     jumpedTo: 'Jumped to {{file}}:{{line}}',
     // ---- metrics (M6) ----
     metrics: 'Code metrics',

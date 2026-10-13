@@ -36,7 +36,7 @@ export const ja = {
     saved: '保存しました',
     clearCache: 'キャッシュを削除',
     cacheCleared: 'キャッシュを削除しました',
-    cacheUsage: 'キャッシュ：{{trees}} ツリー / {{files}} ファイル',
+    cacheUsage: 'キャッシュ：{{trees}} ツリー / {{files}} ファイル / {{analysis}} 分析結果',
     githubToken: 'GitHub Token（任意）',
     githubTokenHint: 'API レート制限の緩和のみに使用。本機に保存され、設定ファイルへの書き込みや送信は行いません',
     maxTokens: 'AI コンテキストパックのトークン上限',
@@ -107,6 +107,7 @@ export const ja = {
     pickSymbolHint: 'コード内で Ctrl+クリック、またはテキスト選択して F12',
     indexing: 'インデックス作成中...',
     indexStats: 'シンボル {{symbols}} 件 · 参照 {{references}} 件 · 解析 {{files}} ファイル',
+    incrementalStats: 'キャッシュヒット {{cached}} ファイル · 再解析 {{parsed}} ファイル',
     jumpedTo: '{{file}}:{{line}} に移動しました',
     // ---- コードメトリクス（M6） ----
     metrics: 'コードメトリクス',

@@ -26,9 +26,9 @@
 | 18 | 上下文文件包含项目概览、文件树、核心符号签名、调用关系摘要 | E2E 断言四个章节标题 + `src/util.ts:<行号>` 存在；实际输出见 E2E 报告 | ✅ |
 | 19 | 该文件能被 WorkBuddy/Trae 等工具直接读取并理解项目结构 | 输出为纯 Markdown（人机双读）+ 结构化 JSON（`codeatlas-context.json`）；E2E 断言 JSON 含 `generator/repo/symbols/calls` 字段 | ✅ |
 
-## 2.0 增补验收（N1 / N2 / N3）
+## 2.0 增补验收（N1 / N2 / N3 / N4）
 
-2.0 的三个里程碑已完成（`[Unreleased]`，尚未发布）。验收项与验证方式如下：
+2.0 的四个里程碑已完成（`[Unreleased]`，尚未发布）。验收项与验证方式如下：
 
 | 里程碑 | 验收标准 | 验证方式 | 结果 |
 |---|---|---|---|
@@ -43,6 +43,11 @@
 | N3 类图 | 继承 / 实现分边，歧义不连线 | 单测 `classGraph.test.ts`（18 例，含 9 种语言真实 AST）；E2E `类图（继承/实现）` 断言渲染 | ✅ |
 | N3 分层视图 | 按目录用途聚类 | E2E 断言 `[data-layer="source"]` 行包含 `src` | ✅ |
 | 导入解析正确性 | 跨语言解析不产生错误依赖边 | 单测 `importResolver.test.ts`（14 例：相对 / 点号 / 斜杠 / 别名 / 歧义返回 null / 自环防护） | ✅ |
+| **N4** 内容哈希指纹 | FNV-1a 32 位确定性：空串 `811c9dc5`、内容变化指纹变化、中英混合稳定 | 单测 `tests/unit/hash.test.ts`（6 例） | ✅ |
+| N4 缓存记录三重校验 | `v / hash / path` 任一不符即视为未命中，metrics 缺失兼容旧记录 | 单测 `tests/unit/analysisCache.test.ts`（10 例） | ✅ |
+| N4 缓存键命名空间 | github 源 `owner/repo@branch`、zip 源 `meta.name`，不同仓库互不串缓存 | 单测 `analysisCache.test.ts` 的键拼接用例 | ✅ |
+| N4 无环境降级 | IndexedDB 不可用时读写返回 null，主流程照常全量分析 | 单测 `analysisCache.test.ts`（Node 环境安全返回 null） | ✅ |
+| N4 增量分析 | 冷缓存不显示提示；二次打开命中缓存，状态栏「缓存命中 5 个文件 · 重解析 0 个」，符号跳转不退化 | E2E `tests/e2e/incremental-analysis.spec.ts`（1 例）；全量 E2E 20/20 | ✅ |
 
 > 说明：C# / C++ 的语法树不区分类与接口，Kotlin 靠 `Base()` 括号区分，Ruby 的 `include` 不算继承 ——
 > 这些差异都写在对应 LangHandler 的注释里，面板统计行也会如实标注（不给"看起来很对"的假信息）。
@@ -50,10 +55,10 @@
 ## 复现命令
 
 ```bash
-# 单元测试（20 个文件 / 234 个用例，实际数量以 npm test 输出为准）
+# 单元测试（250 个用例，实际数量以 npm test 输出为准）
 npm test
 
-# E2E（5 个 spec / 20 个用例，含截图生成到 docs/screenshots/）
+# E2E（6 个 spec / 21 个用例，含截图生成到 docs/screenshots/）
 npm run build && npm run e2e
 
 # tree-sitter 语法包自检（14 个语法包逐一解析 + 共存复解析）

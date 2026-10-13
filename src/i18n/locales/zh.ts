@@ -39,7 +39,7 @@ export const zh = {
     saved: '已保存',
     clearCache: '清除缓存',
     cacheCleared: '缓存已清除',
-    cacheUsage: '当前缓存：{{trees}} 个文件树 / {{files}} 个文件',
+    cacheUsage: '当前缓存：{{trees}} 个文件树 / {{files}} 个文件 / {{analysis}} 条分析结果',
     githubToken: 'GitHub Token（可选）',
     githubTokenHint: '仅用于提高 API 限流额度，保存在本机，不写入配置文件、不上传',
     maxTokens: 'AI 上下文包 token 预算',
@@ -110,6 +110,7 @@ export const zh = {
     pickSymbolHint: '在代码中 Ctrl+单击标识符，或选中文本后按 F12',
     indexing: '索引中...',
     indexStats: '符号 {{symbols}} 个 · 引用 {{references}} 条 · 已解析 {{files}} 个文件',
+    incrementalStats: '缓存命中 {{cached}} 个文件 · 重解析 {{parsed}} 个',
     jumpedTo: '已跳转到 {{file}}:{{line}}',
     // ---- 代码度量（M6） ----
     metrics: '代码度量',

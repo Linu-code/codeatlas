@@ -15,6 +15,7 @@ import type { AppConfig, Language, ThemeId } from '../types/config';
 import { LANGUAGES, saveLanguage } from '../i18n';
 import { THEME_OPTIONS, applyTheme, saveTheme } from '../theme/themes';
 import { cacheStats, clearAllCache } from '../sources/cache';
+import { analysisCacheStats, clearAllAnalysisCache } from '../analysis/analysisCache';
 import { loadToken, saveToken } from '../utils/configStore';
 
 interface Props {
@@ -27,14 +28,17 @@ interface Props {
 export default function SettingsDialog({ open, onClose, config, onConfigChange }: Props) {
   const { t, i18n } = useTranslation(['common']);
   const [token, setToken] = useState('');
-  const [stats, setStats] = useState({ trees: 0, files: 0 });
+  const [stats, setStats] = useState({ trees: 0, files: 0, analysis: 0 });
   const [cleared, setCleared] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setToken(loadToken());
     setCleared(false);
-    void cacheStats().then(setStats);
+    void (async () => {
+      const s = await cacheStats();
+      setStats({ ...s, analysis: await analysisCacheStats() });
+    })();
   }, [open]);
 
   const changeLanguage = useCallback(
@@ -57,7 +61,9 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
 
   const handleClearCache = useCallback(async () => {
     await clearAllCache();
-    setStats(await cacheStats());
+    await clearAllAnalysisCache();
+    const s = await cacheStats();
+    setStats({ ...s, analysis: await analysisCacheStats() });
     setCleared(true);
   }, []);
 
@@ -168,7 +174,7 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
           style={{ borderColor: 'var(--c-border)' }}
         >
           <span style={{ color: 'var(--c-text-2)' }}>
-            {t('cacheUsage', { trees: stats.trees, files: stats.files })}
+            {t('cacheUsage', { trees: stats.trees, files: stats.files, analysis: stats.analysis })}
             {cleared && <span style={{ color: 'var(--c-success)' }}> · {t('cacheCleared')}</span>}
           </span>
           <button

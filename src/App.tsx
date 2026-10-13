@@ -725,6 +725,14 @@ export default function App() {
                 })}
               </span>
             )}
+            {!analysis.state.running && analysis.state.incremental.cached > 0 && (
+              <span style={{ color: 'var(--c-success)' }}>
+                {t('analysis:incrementalStats', {
+                  cached: analysis.state.incremental.cached,
+                  parsed: analysis.state.incremental.parsed,
+                })}
+              </span>
+            )}
             {active && <span className="truncate">{active.path}</span>}
             {active?.content != null && (
               <span>

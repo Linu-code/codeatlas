@@ -24,4 +24,5 @@ npm run e2e       # 运行 E2E，截图自动写入本目录
 | `architecture-classes.png` | 架构视图 · 类图（继承 / 实现） |
 
 截图逻辑见 `tests/e2e/helpers.ts` 的 `saveScreenshot()`；用例见
-`tests/e2e/analysis-panels.spec.ts`、`i18n-theme.spec.ts`、`navigation-panels.spec.ts`、`zip-offline.spec.ts`。
+`tests/e2e/analysis-panels.spec.ts`、`i18n-theme.spec.ts`、`navigation-panels.spec.ts`、`zip-offline.spec.ts`、
+`incremental-analysis.spec.ts`（N4 增量分析，断言状态栏缓存命中，不产截图）。
