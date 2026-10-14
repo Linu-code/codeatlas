@@ -204,7 +204,7 @@ Tauri 二进制冷启动本身 <500ms；UI 首屏只渲染布局骨架，tree-si
 
 | 项 | 取值 | 原因 |
 |----|------|------|
-| `web-tree-sitter` | `0.22.6` | 0.25+ 使用新版 dylink 段，与 `tree-sitter-wasms@0.1.13` 的旧 ABI 语法包不兼容（`getDylinkMetadata` 失败）；可用 `npm run check:tree-sitter` 自检 |
+| `web-tree-sitter` | `0.25.10` | 与 `tree-sitter-wasms@0.1.13`（ABI 13）配对兼容；**0.26+** 使用新版 dylink 段反而与旧 ABI 语法包不兼容（`getDylinkMetadata` 失败，issue tree-sitter#5171），故锁 0.25.x 并通过 Dependabot 忽略 0.26+；可用 `npm run check:tree-sitter` 自检 |
 | Tauri CSP `script-src` | 必须含 `'unsafe-eval'` | tree-sitter 的 emscripten 运行时使用 eval；缺失会导致打包后白屏（浏览器模式不暴露该问题） |
 | `bundle.windows.nsis.installMode` | `currentUser` | Tauri 2 取值；写成 `perUser` 会导致打包直接失败 |
 

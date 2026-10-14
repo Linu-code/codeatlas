@@ -6,28 +6,31 @@
  *   · grammar wasm  = 各语言的语法包（tree-sitter-javascript.wasm 等）
  *   · 解析器池      = 每种语言复用一个 Parser 实例（Parser 创建有一定开销）
  *
- * 版本约束（重要）：项目锁定 web-tree-sitter@0.22.6 + tree-sitter-wasms@0.1.13。
- * 0.25+ 的运行时改用新版 dylink 段加载 wasm，与旧 ABI 构建的语法包不兼容
- * （报 getDylinkMetadata 失败），scripts/check-tree-sitter.cjs 可复现该问题。
+ * 版本约束（重要）：项目锁定 web-tree-sitter@0.25.10 + tree-sitter-wasms@0.1.13。
+ * 0.25.x 是兼容 tree-sitter-wasms 0.1.13（tree-sitter-cli 0.20.8 构建，ABI 13）的可用下限；
+ * 0.26+ 的运行时改用新版 dylink 段加载 wasm，与旧 ABI 构建的语法包不兼容
+ * （报 getDylinkMetadata 失败，issue tree-sitter#5171），scripts/check-tree-sitter.cjs 可复现该问题。
  *
  * 语言扩容注意（实测结论，见 scripts/check-tree-sitter.cjs 的 LANG_SAMPLES）：
  *   · 同一运行时内可共存十余种语法包，已逐一验证解析正常
  *   · Lua 语法包在多语言共存时会解析失败，Bash 语法包遇到 `case` 语句会抛异常，
  *     Scala 语法包无法识别 while / for —— 三者均未纳入，待上游语法包修复后再评估
- *   · Dart / Elm / QL 的语法包与 0.22 运行时 ABI 不兼容，同样未纳入
+ *   · Dart / Elm / QL 的语法包与 0.25 运行时 ABI 不兼容，同样未纳入（升级后需重新实测）
  *
  * 降级策略（提示词要求）：
  *   · 语法包加载失败 → 该语言标记为不支持，调用方跳过并提示（i18n: errors.unsupportedLanguage）
  *   · 单文件解析超时/异常 → 计入 failedFiles，不影响其它文件
  */
 
-import type ParserType from 'web-tree-sitter';
+// 仅作编译期类型（import type 在打包时被擦除，不会把运行时打进首屏 chunk）。
+// 0.25 起 Language 是命名导出（0.22 中是 Parser.init 完成后挂上的静态成员）。
+import type { Parser as ParserCtor, Language as LanguageCtor, SyntaxNode } from 'web-tree-sitter';
 
-/** tree-sitter 运行时的类型（运行时按需动态 import，避免拖累首屏） */
-type ParserModule = typeof ParserType;
-type ParserInstance = InstanceType<ParserModule>;
-type LanguageInstance = ParserType.Language;
-type SyntaxNode = ParserType.SyntaxNode;
+/** tree-sitter Parser 构造器类型（运行时按需动态 import，避免拖累首屏） */
+type ParserModule = typeof ParserCtor;
+type ParserInstance = ParserCtor;
+type LanguageModule = typeof LanguageCtor;
+type LanguageInstance = LanguageCtor;
 
 export type LangId =
   | 'javascript'
@@ -137,6 +140,8 @@ const pool = new Map<LangId, PoolEntry>();
 /** 加载失败的语言（避免反复重试） */
 const unsupported = new Set<LangId>();
 let runtime: ParserModule | null = null;
+/** Language 构造器（init 后挂上，供 getParser 加载语法包） */
+let langCtor: LanguageModule | null = null;
 
 /** 注入自定义环境（单测用 Node 文件路径） */
 export function configureParserEnv(next: ParserEnv): void {
@@ -155,14 +160,19 @@ export async function initParsers(): Promise<ParserModule> {
   if (!initPromise) {
     initPromise = (async () => {
       const mod = (await import('web-tree-sitter')) as unknown as {
-        default?: ParserModule;
         Parser?: ParserModule;
+        Language?: LanguageModule;
+        default?: ParserModule;
       };
-      // 兼容 CJS/ESM 两种导出形态
-      const ctor = (mod.default ?? mod.Parser ?? mod) as ParserModule;
-      // 0.22 中 Language/Query 等静态成员在 init 完成后才挂上
+      // 0.25 的 ESM 构建用命名导出（Parser / Language）；CJS 互操作时可能挂在 default 上
+      const ctor = (mod.Parser ?? mod.default ?? (mod as unknown as ParserModule)) as ParserModule;
+      const lang = (mod.Language ??
+        (ctor as unknown as { Language?: LanguageModule }).Language) as LanguageModule;
+      if (!lang) throw new Error('web-tree-sitter: Language export not found');
+      // 0.25 中 init 仅负责加载运行时 wasm（locateFile 指向 tree-sitter.wasm），返回 void
       await ctor.init({ locateFile: () => env.runtimeWasm() });
       runtime = ctor;
+      langCtor = lang;
       return ctor;
     })();
   }
@@ -177,7 +187,7 @@ export async function getParser(lang: LangId): Promise<ParserInstance | null> {
 
   const ctor = await initParsers();
   try {
-    const language = await ctor.Language.load(env.grammarWasm(grammarFileName(lang)));
+    const language = await langCtor!.load(env.grammarWasm(grammarFileName(lang)));
     const parser = new ctor();
     parser.setLanguage(language);
     pool.set(lang, { parser, language });

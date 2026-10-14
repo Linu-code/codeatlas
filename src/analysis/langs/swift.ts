@@ -80,7 +80,7 @@ export const swiftHandler: LangHandler = {
     // a.b()：suffix 字段里才是方法名
     const suffix =
       target.childForFieldName('suffix') ??
-      target.namedChildren.filter((c) => c.type === 'navigation_suffix').pop() ??
+      target.namedChildren.filter((c: any) => c.type === 'navigation_suffix').pop() ??
       null;
     if (!suffix) return null;
     return firstChildOfType(suffix, SIMPLE_IDS)?.text ?? fieldText(suffix, 'suffix');

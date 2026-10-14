@@ -47,11 +47,13 @@
 | N4 缓存记录三重校验 | `v / hash / path` 任一不符即视为未命中，metrics 缺失兼容旧记录 | 单测 `tests/unit/analysisCache.test.ts`（10 例） | ✅ |
 | N4 缓存键命名空间 | github 源 `owner/repo@branch`、zip 源 `meta.name`，不同仓库互不串缓存 | 单测 `analysisCache.test.ts` 的键拼接用例 | ✅ |
 | N4 无环境降级 | IndexedDB 不可用时读写返回 null，主流程照常全量分析 | 单测 `analysisCache.test.ts`（Node 环境安全返回 null） | ✅ |
-| N4 增量分析 | 冷缓存不显示提示；二次打开命中缓存，状态栏「缓存命中 5 个文件 · 重解析 0 个」，符号跳转不退化 | E2E `tests/e2e/incremental-analysis.spec.ts`（1 例）；全量 E2E 23/23（含 N5① 降级、N5② 导出命令入口，1 个联网用例自动跳过） | ✅ |
+| N4 增量分析 | 冷缓存不显示提示；二次打开命中缓存，状态栏「缓存命中 5 个文件 · 重解析 0 个」，符号跳转不退化 | E2E `tests/e2e/incremental-analysis.spec.ts`（1 例）；全量 E2E 23/24（含 N5① 降级、N5② 导出命令入口，1 个联网用例自动跳过） | ✅ |
 | **N5①** 本地目录数据源 | 点「打开本地目录」用系统对话框选文件夹后，文件树/README/分析可用；浏览器模式按钮隐藏；拖入文件夹打开独立新窗口 | 📄 `src/sources/local.ts`（`LocalDirSource` 实现 `RepoFS`）、`src-tauri/src/lib.rs`（`read_dir`/`read_text_file`/`select_dir`）；单测 `tests/unit/localDir.test.ts`（4 例：非 Tauri 抛 not-found-dir / 空目录抛 empty-zip / 正常打开 + 路径穿越拦截）；E2E `tests/e2e/local-dir-degrade.spec.ts`（2 例：默认语言 + 三语言切换下按钮隐藏） | ✅（单测 + E2E 降级 + Rust 编译）/ ⏭️（桌面端真实加载需 GUI） |
 | N5① 防爆与缓存隔离 | `MAX_SCAN_ENTRIES=200_000` 静默截断、`MAX_DEPTH=24` 防符号链接环、跳过 12 个构建/依赖目录；缓存 `local:<绝对路径去尾>` 命名空间防同名串缓存 | 📄 `src/sources/local.ts`（`read_dir` 防爆 + `cacheNs`）、`src-tauri/src/lib.rs`（`walk_dir` 深度优先 + `SKIP_DIRS`） | ✅（单测 + 代码审查） |
 | **N5②** HTML 报告导出 | 命令面板「导出 HTML 报告」生成单文件离线 HTML（架构概览 + 度量 + 图 + 阅读路线），可分享可归档；零外部请求、双击即开 | 📄 `src/report/buildReport.ts`（`buildReportModel` 纯聚合 + `renderReportHtml` 自包含 HTML）、`src/report/exportReport.ts`（Mermaid→SVG 内联 + Blob 下载）；单测 `tests/unit/report.test.ts`（8 例）；E2E `tests/e2e/report-export.spec.ts`（1 例，命令入口可见） | ✅（单测 + E2E 入口 + 类型检查）/ ⏭️（实际下载落地需人工点击） |
 | N5② 离线与 XSS | 报告内联 CSS、无 `http(s)://` 外链；文件名特殊字符被转义 | 单测 `report.test.ts` 断言产物不含外链、`<script>` 被转义 | ✅ |
+| **N6** 版本号 2.0.0 | package.json / Cargo.toml / Cargo.lock（codeatlas 包）/ tauri.conf.json / App.tsx 状态栏全部对齐 2.0.0 | 代码审查 + grep 五处 `1.0.0` → `2.0.0`；`npm run check:tree-sitter` 与 `tsc -b` 仍绿 | ✅ |
+| **N6** ABI 升级（web-tree-sitter 0.22 → 0.25） | 运行时与 14 个语法包 ABI 兼容，解析正常、共存复解析正常；前端 / Worker / Rust 编译全绿 | `npm run check:tree-sitter`（14 个语法包 + 共存复解析全绿，LANGUAGE_VERSION=15）；`tsc -b` 绿；单测 262/262；E2E 23/24（1 个联网用例自动跳过）；`npm run build:exe` 产出 CodeAtlas.exe（10.4 MB）+ CodeAtlas_2.0.0_x64-setup.exe（4.8 MB） | ✅ |
 
 > 说明：C# / C++ 的语法树不区分类与接口，Kotlin 靠 `Base()` 括号区分，Ruby 的 `include` 不算继承 ——
 > 这些差异都写在对应 LangHandler 的注释里，面板统计行也会如实标注（不给"看起来很对"的假信息）。

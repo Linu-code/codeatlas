@@ -142,14 +142,14 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 |------|------|------|
 | 桌面框架 | **Tauri 2**（Rust + 系统 WebView2） | 体积约 3 MB，冷启动快，不用 Electron |
 | 前端 | React 18 + TypeScript + Vite + Tailwind CSS | 类型安全；分析层全为纯函数便于单测 |
-| AST 解析 | **web-tree-sitter 0.22** + tree-sitter-wasms（WASM） | 浏览器内真实语法树，覆盖 12 种主流语言 |
+| AST 解析 | **web-tree-sitter 0.25** + tree-sitter-wasms（WASM） | 浏览器内真实语法树，覆盖 12 种主流语言 |
 | i18n | i18next + react-i18next | 命名空间组织，中/英/日，RTL 已预留 |
 | 代码高亮 | Prism（语言包按需动态加载） | 首屏只带 4 个核心语法，其余用时再拉 |
 | 图表 | Mermaid（动态加载） | 调用图渲染 + SVG/PNG 导出 |
 | 本地缓存 | IndexedDB（手写薄封装） | 二次打开秒开；断网回退旧缓存；**分析结果增量复用（N4）** |
 | 测试 | Vitest（262 个单测）+ Playwright（24 个 E2E 用例，含 1 个联网自动跳过） | 分析层纯函数全覆盖 |
 
-> **版本锁定说明**：`web-tree-sitter` 必须与语法包 ABI 匹配。项目锁定 `web-tree-sitter@0.22.6` + `tree-sitter-wasms@0.1.13`；0.25+ 运行时改用新版 dylink 段，加载旧 ABI 语法包会报 `getDylinkMetadata` 失败。
+> **版本锁定说明**：`web-tree-sitter` 必须与语法包 ABI 匹配。项目锁定 `web-tree-sitter@0.25.10` + `tree-sitter-wasms@0.1.13`（0.1.13 由 tree-sitter-cli 0.20.8 构建，ABI 13；0.25.x 是兼容下限）。**0.26+** 运行时改用新版 dylink 段，加载旧 ABI 语法包会报 `getDylinkMetadata` 失败（issue tree-sitter#5171），故切勿升到 0.26+（已通过 Dependabot 忽略）。
 >
 > **升级路径**：运行时与语法包必须**成对**升级。步骤：① 同时改 `package.json` 里的两个版本并 `npm install`；② 跑 `npm run check:tree-sitter`（会对 js/ts/tsx/python 四种语法包逐个真实解析并打印结果，任一失败即退出非零）；③ 确认 `scripts/copy-grammars.mjs` 里引用的 wasm 文件名仍存在（不同版本文件名不同）；④ 最后 `npm test` 复跑 `tests/unit/{symbols,callgraph,scopeGraph,metrics}.test.ts` 四个依赖真实 AST 的用例。
 
@@ -232,7 +232,7 @@ npm run check:tree-sitter   # tree-sitter 运行时与语法包兼容性自检
 ## 已知限制
 
 - AST 解析支持 **JavaScript / TypeScript / TSX / Python / Go / Rust / Java / C / C++ / C# / PHP / Kotlin / Swift / Ruby**；其它语言可正常浏览与高亮，但不参与调用图/跳转/度量。语法包加载失败时会自动降级并提示，不影响其它功能。
-- 未纳入的语言（语法包自身有缺陷，已实测记录在 `scripts/check-tree-sitter.cjs`）：**Lua**（与其它语法包共存时解析失败）、**Bash**（`case` 语句触发语法包异常）、**Scala**（无法识别 `while` / `for`）、**Dart**（语法包 ABI 与运行时版本不兼容）。
+- 未纳入的语言（语法包自身有缺陷，已实测记录在 `scripts/check-tree-sitter.cjs`）：**Lua**（与其它语法包共存时解析失败）、**Bash**（`case` 语句触发语法包异常）、**Scala**（无法识别 `while` / `for`）；**Dart / Elm / QL**（ABI 15，升级到 web-tree-sitter 0.25 后具备加载条件，待重新实测）。
 - 单次分析上限：**2000 个文件、单文件 1 MB**（超出部分跳过，保证中型项目流畅）；调用图超过 120 个节点时按连接度截断。
 - 调用图超过 60 个节点时按连接度截断为骨架图，界面会明确提示。
 - GitHub 匿名 API 限流 60 次/小时；文件内容走 `raw.githubusercontent.com`（不计入 API 配额），文件树失败时若无法回退缓存会提示填入 Token。

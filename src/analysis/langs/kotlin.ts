@@ -27,12 +27,12 @@ const TYPE_NAME_NODES = new Set(['type_identifier']);
 /** 从 call_expression 的第一个具名子节点解析被调名 */
 function callTargetName(node: Parser.SyntaxNode): string | null {
   const target = node.namedChildren.find(
-    (c) => c.type === 'simple_identifier' || c.type === 'navigation_expression',
+    (c: Parser.SyntaxNode) => c.type === 'simple_identifier' || c.type === 'navigation_expression',
   );
   if (!target) return null;
   if (target.type === 'simple_identifier') return target.text;
   // a.b() / Helper.upper(x)：取最后一个 navigation_suffix 里的标识符
-  const suffixes = target.namedChildren.filter((c) => c.type === 'navigation_suffix');
+  const suffixes = target.namedChildren.filter((c: Parser.SyntaxNode) => c.type === 'navigation_suffix');
   const last = suffixes[suffixes.length - 1];
   return last ? (firstChildOfType(last, NAME_NODES)?.text ?? null) : null;
 }

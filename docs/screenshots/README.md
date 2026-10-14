@@ -18,6 +18,8 @@ npm run e2e       # 运行 E2E，截图自动写入本目录
 | `search.png` | 全局正则搜索结果 |
 | `context-pack.png` | AI 上下文包对话框 |
 | `command-palette.png` | 命令面板（`Ctrl/Cmd+K` 模糊搜索） |
+
+> 以上截图对应 **CodeAtlas 2.0.0** 构建（web-tree-sitter 0.25.10 运行时），由 E2E 自动生成，反映当前功能形态。
 | `reading-path.png` | 建议阅读路线面板（入口 → 枢纽 → 中间层 → 末端） |
 | `architecture-modules.png` | 架构视图 · 模块依赖图（Mermaid） |
 | `architecture-layers.png` | 架构视图 · 按用途分层 |

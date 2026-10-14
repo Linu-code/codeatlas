@@ -8,11 +8,12 @@
  *   ③ 多语言共存安全（全部语法包加载进同一运行时后，再回头复解析仍正常）
  *
  * 背景（踩过的坑）：
- *   · web-tree-sitter 0.25+ 使用新版 dylink 段加载 wasm，与 tree-sitter-wasms
- *     （旧 ABI 构建）不兼容，会报 `getDylinkMetadata` 失败 —— 因此项目锁定
- *     web-tree-sitter@0.22.6 + tree-sitter-wasms@0.1.13 这一组合。
+ *   · web-tree-sitter 0.26+ 使用新版 dylink 段加载 wasm，与 tree-sitter-wasms
+ *     （旧 ABI 构建，0.1.13 由 tree-sitter-cli 0.20.8 产出，ABI 13）不兼容，会报
+ *     `getDylinkMetadata` 失败（issue tree-sitter#5171）—— 因此项目锁定
+ *     web-tree-sitter@0.25.10 + tree-sitter-wasms@0.1.13 这一组合（0.25.x 是兼容下限）。
  *   · 部分语法包本身有缺陷，已逐一实测并排除（见 EXCLUDED 注释）。
- *     升级 tree-sitter-wasms 时应重新评估这些语言是否可用。
+ *     升级 tree-sitter 运行时后应重新评估这些语言是否可用。
  *
  * 运行：node scripts/check-tree-sitter.cjs
  */
@@ -45,8 +46,8 @@ const LANG_SAMPLES = {
  *   lua   —— 与其它语法包共存时解析失败（单独加载正常），且 dispose 后不可恢复
  *   bash  —— 遇到 `case ... esac` 会直接抛异常（"_ is not a function"）
  *   scala —— 语法包无法识别 while / for（被解析成 infix_expression）
- *   dart  —— 语言版本 15，超出运行时支持范围（13–14）
- *   elm / ql —— 加载即报 memory access out of bounds
+ *   dart  —— ABI 15；升级到 0.25（LANGUAGE_VERSION=15）后具备加载条件，待重新实测
+ *   elm / ql —— 加载即报 memory access out of bounds（旧运行时即如此，待重新实测）
  * 处理方式：待 tree-sitter-wasms 上游修复后重新实测，再决定是否纳入。
  */
 const EXCLUDED = {
@@ -77,9 +78,9 @@ function grammarDir() {
   const wt = require('web-tree-sitter');
   const Parser = wt.Parser ?? wt;
 
-  // 0.22 中 Language/Query 等静态成员是在 init() 完成后才挂到 Parser 上的
-  const treeSitter = await Parser.init({ locateFile: () => runtimeWasmPath() });
-  const Language = Parser.Language ?? (treeSitter && treeSitter.Language);
+  // 0.25 中 init() 仅加载运行时 wasm（返回 void）；Language 是命名导出
+  await Parser.init({ locateFile: () => runtimeWasmPath() });
+  const Language = Parser.Language ?? wt.Language;
   console.log(
     `web-tree-sitter runtime wasm = ${path.basename(runtimeWasmPath())}` +
       (wt.LANGUAGE_VERSION ? ` (LANGUAGE_VERSION=${wt.LANGUAGE_VERSION})` : ''),

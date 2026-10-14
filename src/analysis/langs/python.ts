@@ -68,8 +68,8 @@ export const pythonHandler: LangHandler = {
     const args = node.namedChildren.find((c) => c.type === 'argument_list');
     if (!args) return { extends: [], implements: [] };
     const ext = args.namedChildren
-      .filter((c) => c.type === 'identifier' || c.type === 'attribute')
-      .map((c) => normalizeTypeName(c.text))
+      .filter((c: Parser.SyntaxNode) => c.type === 'identifier' || c.type === 'attribute')
+      .map((c: Parser.SyntaxNode) => normalizeTypeName(c.text))
       .filter(Boolean);
     return { extends: ext, implements: [] };
   },

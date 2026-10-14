@@ -46,7 +46,7 @@ export function unwrapDeclarator(node: Parser.SyntaxNode): Parser.SyntaxNode | n
     if (NAME_NODES.has(cur.type)) return cur;
     const next =
       cur.childForFieldName('declarator') ??
-      cur.namedChildren.find((c) => c.type.endsWith('declarator')) ??
+      cur.namedChildren.find((c: Parser.SyntaxNode) => c.type.endsWith('declarator')) ??
       null;
     if (!next) return null;
     cur = next;

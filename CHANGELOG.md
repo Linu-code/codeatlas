@@ -22,7 +22,7 @@
   - **类图**：9 种 OOP 语言的继承 / 实现关系（注意：C#/C++ 语法树不区分类与接口，Kotlin 靠 `Base()` 括号区分，Ruby 的 `include` 不算继承）；
   - **分层视图**：按目录用途聚类，展示模块边界与体量。
 - **跨语言导入解析**：新增 `importResolver`，统一处理相对路径、点号包名（Java/C#/PHP）、斜杠模块路径（Go/Rust）与打包器别名（`@/`、`~/`）。策略是"宁可少连不可乱连"：歧义与外部依赖一律不建边，避免误导 PageRank 与环检测。
-- **语法包适配记录**：Lua（多语言共存时解析失败）、Bash（`case` 语句触发异常）、Scala（无法识别 `while`/`for`）、Dart（ABI 版本不兼容）因语法包自身缺陷暂未纳入，结论与复现方式记录在自检脚本内，便于上游修复后重新评估。
+- **语法包适配记录**：Lua（多语言共存时解析失败）、Bash（`case` 语句触发异常）、Scala（无法识别 `while`/`for`）因语法包自身缺陷暂未纳入，结论与复现方式记录在自检脚本内，便于上游修复后重新评估；Dart / Elm / QL（ABI 15）在升级到 web-tree-sitter 0.25 后具备加载条件，待重新实测。
 - **分析结果持久化 + 增量分析（N4 完成）**：符号索引与度量结果按「文件内容哈希」指纹写入 IndexedDB（DB `codeatlas` v2，新增 `analysis` store），同一仓库再次打开时**跳过 AST 解析、直接复用缓存**——大仓库二次打开分析耗时从"全量重算"变为"纯内存重建派生图"。
   - 指纹用零依赖的 **FNV-1a 32 位**（`src/utils/hash.ts`），内容一致即命中，改动单文件只重解析该文件；
   - 缓存带 `v / hash / path` 三重校验，`ANALYSIS_FORMAT_VERSION` 递增即令全部旧缓存失效（沿用 `TREE_FORMAT_VERSION` 模式）；
@@ -56,6 +56,7 @@
   —— `web-tree-sitter` 与 `tree-sitter-wasms` 必须成对升级、React major 需专项适配。
 - **安全扫描**：新增 CodeQL（javascript-typescript）静态扫描。
 - **版本号升 2.0.0**：`package.json` / `Cargo.toml` / `tauri.conf.json` / `App` 状态栏 / `Cargo.lock` 对齐 `2.0.0`（N6 收口，尚未正式打 tag 发布）。
+- **tree-sitter 运行时升级（N6 完成）**：`web-tree-sitter` 由 `0.22.6` 升级到 `0.25.10`（ABI 13–15，与 `tree-sitter-wasms@0.1.13` 语法包配对兼容；14 个语法包 + 共存复解析经 `npm run check:tree-sitter` 验证全绿）。0.26+ 因 dylink 段变更与旧 ABI 语法包不兼容，已通过 Dependabot 忽略。**适配要点**：`parser.ts` 改用 0.25 命名导出（`Language` 不再挂在 `Parser` 静态上，改为 `import('web-tree-sitter').Language`）；新增 `src/web-tree-sitter-aug.d.ts` 把 0.22 的 `SyntaxNode` 兼容别名回贴为宽松节点接口，整套分析代码（langs / metrics / symbols / parser）零改动、`tsc` 与 262 个单测全绿。
 - **工程规范**：补 `.editorconfig`；提交身份改用 GitHub noreply 邮箱。
 
 ### 规划中
