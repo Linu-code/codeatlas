@@ -131,6 +131,7 @@ export const zh = {
     // ---- AI 上下文包（M6） ----
     contextPack: 'AI 上下文包',
     contextPackGenerate: '生成 AI 上下文包',
+    exportReport: '导出 HTML 报告',
     contextPackEmpty: '点击下方按钮生成上下文包（不会调用任何 AI）',
     contextPackTokens: '约 {{tokens}} tokens（预算 {{budget}}）',
     contextPackSymbols: '符号 {{included}}/{{total}}',

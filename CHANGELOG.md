@@ -38,6 +38,11 @@
   - **浏览器降级**：非 Tauri 环境（纯 `vite preview`）下 `invokeSafe` 返回 null，`TopBar` 的「打开本地目录」按钮自动隐藏，拖入文件夹不会触发崩溃；E2E `tests/e2e/local-dir-degrade.spec.ts` 覆盖默认语言 + 中/英/日切换三态；
   - **多窗口一致性**：拖入文件/目录时每个目标打开**独立窗口**（`openProjectWindow` 统一 `zippath/localdir` 参数），当前窗口不被"吃掉"（验收 8 延伸）；
   - **路径安全**：前端 `absPath()` 拒绝 `../` / 绝对路径 / `C:` 盘符穿越并抛 `zip-insecure`；Rust 跳过非 UTF-8 文件名；新增错误码 `not-found-dir`；单测 `tests/unit/localDir.test.ts`（4 例）固化上述行为。
+- **HTML 报告导出（N5② 完成）**：一键把当前分析导出为**单文件离线 HTML**（内联 CSS，零外部请求，双击即开），适合分享与归档。
+  - **架构**：`buildReportModel` 把 `AnalysisState` 聚合成可序列化 `ReportModel`（纯函数，Vitest 覆盖 8 例），`renderReportHtml` 产出自包含 HTML；真正的 Mermaid→SVG 渲染在 `exportReport.ts` 用 `mermaid.render` 内联，渲染失败则退化展示 Mermaid 源码。
+  - **内容**：概览卡片（健康评分 / 文件数 / SLOC / 函数数 / 平均复杂度）、语言分布、热点文件与最复杂函数 Top 20、建议阅读路线、循环依赖、分层（按目录用途）、调用关系图 / 模块依赖图 / 类图（SVG 内联）。
+  - **入口**：命令面板 `Ctrl/Cmd+K` →「导出 HTML 报告」（仓库已加载时出现），浏览器与 Tauri 均通过 Blob 下载。
+  - 单测 `tests/unit/report.test.ts`（8 例：聚合正确性 + 离线 HTML 输出 + XSS 转义）；E2E `tests/e2e/report-export.spec.ts` 覆盖命令入口。
 
 ### 变更（工程 / CI）
 
@@ -54,7 +59,7 @@
 
 ### 规划中
 
-- **2.0**（核心升级）：分析结果持久化与增量分析已在 `[Unreleased]` 完成；本地目录数据源已在 N5① 完成；剩余为 HTML 报告导出与多项目工作区。多语言支持、规模提升、阅读路线与命令面板、架构视图已在 `[Unreleased]` 完成。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
+- **2.0**（核心升级）：分析结果持久化与增量分析已在 `[Unreleased]` 完成；本地目录数据源已在 N5① 完成；HTML 报告导出已在 N5② 完成；剩余为多项目工作区。多语言支持、规模提升、阅读路线与命令面板、架构视图已在 `[Unreleased]` 完成。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
 - **2.1**：多平台支持（macOS / Linux 打包 + CI 矩阵）。
 - **2.2**：可选本地 AI（Ollama 本地模型，默认关闭）。
 

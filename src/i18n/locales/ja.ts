@@ -128,6 +128,7 @@ export const ja = {
     // ---- AI コンテキストパック（M6） ----
     contextPack: 'AI コンテキストパック',
     contextPackGenerate: 'AI コンテキストパックを生成',
+    exportReport: 'HTML レポートを書き出し',
     contextPackEmpty: '下のボタンで生成します（AI は一切呼び出しません）',
     contextPackTokens: '約 {{tokens}} トークン（予算 {{budget}}）',
     contextPackSymbols: 'シンボル {{included}}/{{total}}',

@@ -28,7 +28,7 @@
 
 ## 2.0 增补验收（N1 / N2 / N3 / N4）
 
-2.0 的四个里程碑已完成（`[Unreleased]`，尚未发布）。验收项与验证方式如下：
+2.0 的六个里程碑已完成（N1–N4、N5①、N5②，`[Unreleased]`，尚未发布）。验收项与验证方式如下：
 
 | 里程碑 | 验收标准 | 验证方式 | 结果 |
 |---|---|---|---|
@@ -47,9 +47,11 @@
 | N4 缓存记录三重校验 | `v / hash / path` 任一不符即视为未命中，metrics 缺失兼容旧记录 | 单测 `tests/unit/analysisCache.test.ts`（10 例） | ✅ |
 | N4 缓存键命名空间 | github 源 `owner/repo@branch`、zip 源 `meta.name`，不同仓库互不串缓存 | 单测 `analysisCache.test.ts` 的键拼接用例 | ✅ |
 | N4 无环境降级 | IndexedDB 不可用时读写返回 null，主流程照常全量分析 | 单测 `analysisCache.test.ts`（Node 环境安全返回 null） | ✅ |
-| N4 增量分析 | 冷缓存不显示提示；二次打开命中缓存，状态栏「缓存命中 5 个文件 · 重解析 0 个」，符号跳转不退化 | E2E `tests/e2e/incremental-analysis.spec.ts`（1 例）；全量 E2E 22/22（含 N5① 降级用例，1 个联网用例自动跳过） | ✅ |
+| N4 增量分析 | 冷缓存不显示提示；二次打开命中缓存，状态栏「缓存命中 5 个文件 · 重解析 0 个」，符号跳转不退化 | E2E `tests/e2e/incremental-analysis.spec.ts`（1 例）；全量 E2E 23/23（含 N5① 降级、N5② 导出命令入口，1 个联网用例自动跳过） | ✅ |
 | **N5①** 本地目录数据源 | 点「打开本地目录」用系统对话框选文件夹后，文件树/README/分析可用；浏览器模式按钮隐藏；拖入文件夹打开独立新窗口 | 📄 `src/sources/local.ts`（`LocalDirSource` 实现 `RepoFS`）、`src-tauri/src/lib.rs`（`read_dir`/`read_text_file`/`select_dir`）；单测 `tests/unit/localDir.test.ts`（4 例：非 Tauri 抛 not-found-dir / 空目录抛 empty-zip / 正常打开 + 路径穿越拦截）；E2E `tests/e2e/local-dir-degrade.spec.ts`（2 例：默认语言 + 三语言切换下按钮隐藏） | ✅（单测 + E2E 降级 + Rust 编译）/ ⏭️（桌面端真实加载需 GUI） |
 | N5① 防爆与缓存隔离 | `MAX_SCAN_ENTRIES=200_000` 静默截断、`MAX_DEPTH=24` 防符号链接环、跳过 12 个构建/依赖目录；缓存 `local:<绝对路径去尾>` 命名空间防同名串缓存 | 📄 `src/sources/local.ts`（`read_dir` 防爆 + `cacheNs`）、`src-tauri/src/lib.rs`（`walk_dir` 深度优先 + `SKIP_DIRS`） | ✅（单测 + 代码审查） |
+| **N5②** HTML 报告导出 | 命令面板「导出 HTML 报告」生成单文件离线 HTML（架构概览 + 度量 + 图 + 阅读路线），可分享可归档；零外部请求、双击即开 | 📄 `src/report/buildReport.ts`（`buildReportModel` 纯聚合 + `renderReportHtml` 自包含 HTML）、`src/report/exportReport.ts`（Mermaid→SVG 内联 + Blob 下载）；单测 `tests/unit/report.test.ts`（8 例）；E2E `tests/e2e/report-export.spec.ts`（1 例，命令入口可见） | ✅（单测 + E2E 入口 + 类型检查）/ ⏭️（实际下载落地需人工点击） |
+| N5② 离线与 XSS | 报告内联 CSS、无 `http(s)://` 外链；文件名特殊字符被转义 | 单测 `report.test.ts` 断言产物不含外链、`<script>` 被转义 | ✅ |
 
 > 说明：C# / C++ 的语法树不区分类与接口，Kotlin 靠 `Base()` 括号区分，Ruby 的 `include` 不算继承 ——
 > 这些差异都写在对应 LangHandler 的注释里，面板统计行也会如实标注（不给"看起来很对"的假信息）。
@@ -57,10 +59,10 @@
 ## 复现命令
 
 ```bash
-# 单元测试（254 个用例，实际数量以 npm test 输出为准）
+# 单元测试（262 个用例，实际数量以 npm test 输出为准）
 npm test
 
-# E2E（7 个 spec / 23 个用例，含 1 个联网自动跳过；截图生成到 docs/screenshots/）
+# E2E（8 个 spec / 24 个用例，含 1 个联网自动跳过；截图生成到 docs/screenshots/）
 npm run build && npm run e2e
 
 # tree-sitter 语法包自检（14 个语法包逐一解析 + 共存复解析）

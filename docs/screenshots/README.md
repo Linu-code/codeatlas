@@ -26,4 +26,5 @@ npm run e2e       # 运行 E2E，截图自动写入本目录
 截图逻辑见 `tests/e2e/helpers.ts` 的 `saveScreenshot()`；用例见
 `tests/e2e/analysis-panels.spec.ts`、`i18n-theme.spec.ts`、`navigation-panels.spec.ts`、`zip-offline.spec.ts`、
 `incremental-analysis.spec.ts`（N4 增量分析，断言状态栏缓存命中，不产截图）、
-`local-dir-degrade.spec.ts`（N5① 浏览器降级，断言本地目录按钮三语言下隐藏，不产截图）。
+`local-dir-degrade.spec.ts`（N5① 浏览器降级，断言本地目录按钮三语言下隐藏，不产截图）、
+`report-export.spec.ts`（N5② 导出命令入口，断言命令面板可见，不产截图）。

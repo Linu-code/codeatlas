@@ -36,6 +36,7 @@ import SettingsDialog from './components/SettingsDialog';
 import DragOverlay from './components/DragOverlay';
 import { useRepo } from './hooks/useRepo';
 import { useCodeAnalysis } from './hooks/useCodeAnalysis';
+import { exportHtmlReport } from './report/exportReport';
 import { useGlobalSearch } from './hooks/useGlobalSearch';
 import { applyTheme, readSavedTheme, watchSystemTheme } from './theme/themes';
 import { githubLinkBase, githubRawBase } from './utils/markdown';
@@ -399,6 +400,13 @@ export default function App() {
           setPackOpen(true);
           if (!pack) void generatePack();
         },
+      });
+      items.push({
+        id: 'cmd:export-report',
+        section: 'command',
+        label: t('analysis:exportReport'),
+        keywords: 'export report html 报告 导出',
+        onRun: () => void exportHtmlReport(fs.meta, analysis.getState()),
       });
       items.push({
         id: 'cmd:refresh',

@@ -128,6 +128,7 @@ export const en = {
     // ---- AI context pack (M6) ----
     contextPack: 'AI context pack',
     contextPackGenerate: 'Generate AI context pack',
+    exportReport: 'Export HTML report',
     contextPackEmpty: 'Click the button below to generate the pack (no AI is called)',
     contextPackTokens: '~{{tokens}} tokens (budget {{budget}})',
     contextPackSymbols: 'symbols {{included}}/{{total}}',

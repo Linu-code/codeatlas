@@ -121,6 +121,7 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 
 - **本地 ZIP**：点顶栏「打开本地 ZIP」，或直接把 `.zip` **拖入窗口** —— 每个 ZIP 会打开一个**独立窗口**，原窗口状态不受影响；拖入非 ZIP 会提示错误。
 - **本地目录**：点顶栏「打开本地目录」用系统原生对话框选文件夹，或直接把**文件夹拖入窗口** —— 本地项目（含 git 工作区）直接在 App 内浏览与分析，**无需先打包成 zip**；每个目录打开一个**独立窗口**，原窗口状态不受影响。浏览器模式下该按钮自动隐藏（无文件系统权限）。
+- **导出报告**：仓库加载后按 `Ctrl/Cmd+K` 选「导出 HTML 报告」，一键生成**单文件离线 HTML**（架构概览 + 度量 + 图 + 阅读路线），双击即开、可直接分享。
 - **URL 历史**：输入框为空时按 `↑` / `↓` 可调出最近 10 条记录。
 
 ### 快捷键
@@ -146,7 +147,7 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 | 代码高亮 | Prism（语言包按需动态加载） | 首屏只带 4 个核心语法，其余用时再拉 |
 | 图表 | Mermaid（动态加载） | 调用图渲染 + SVG/PNG 导出 |
 | 本地缓存 | IndexedDB（手写薄封装） | 二次打开秒开；断网回退旧缓存；**分析结果增量复用（N4）** |
-| 测试 | Vitest（254 个单测）+ Playwright（23 个 E2E 用例，含 1 个联网自动跳过） | 分析层纯函数全覆盖 |
+| 测试 | Vitest（262 个单测）+ Playwright（24 个 E2E 用例，含 1 个联网自动跳过） | 分析层纯函数全覆盖 |
 
 > **版本锁定说明**：`web-tree-sitter` 必须与语法包 ABI 匹配。项目锁定 `web-tree-sitter@0.22.6` + `tree-sitter-wasms@0.1.13`；0.25+ 运行时改用新版 dylink 段，加载旧 ABI 语法包会报 `getDylinkMetadata` 失败。
 >
@@ -222,7 +223,7 @@ Atlas Blue 色板：主色 `#4A6CF7`、强调色 `#7C9EFF`、深色底 `#1B1D23`
 npm install          # 安装依赖（会自动把 tree-sitter wasm 复制到 public/grammars）
 npm run dev          # 浏览器开发模式
 npm test             # 单元测试（254 个）
-npm run e2e          # E2E（Playwright，23 个用例，含截图生成与 1 个联网自动跳过）
+npm run e2e          # E2E（Playwright，24 个用例，含截图生成与 1 个联网自动跳过）
 npm run build        # 生产构建
 npm run build:exe    # 打包 exe（自动注入 MSVC 环境，产物复制到仓库根目录）
 npm run check:tree-sitter   # tree-sitter 运行时与语法包兼容性自检
@@ -244,7 +245,7 @@ npm run check:tree-sitter   # tree-sitter 运行时与语法包兼容性自检
 ## 路线图
 
 - **1.0**：Windows 桌面版；GitHub 与本地 ZIP 两种数据源；JS/TS/TSX/Python 分析。
-- **2.0**（开发中）：多语言（12 个语言族）与规模提升、阅读路线 / 命令面板 / 架构视图、分析结果持久化与增量分析、本地目录数据源已完成；后续为报告导出、多项目工作区。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
+- **2.0**（开发中）：多语言（12 个语言族）与规模提升、阅读路线 / 命令面板 / 架构视图、分析结果持久化与增量分析、本地目录数据源（N5①）与 HTML 报告导出（N5②）已完成；后续为多项目工作区。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
 - **2.1**：多平台支持（macOS / Linux 打包 + CI 矩阵）。
 - **2.2**：可选本地 AI（Ollama 本地模型，默认关闭）。
 
