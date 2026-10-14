@@ -196,3 +196,108 @@ export function trackRequestHosts(page: Page): { hosts: Set<string>; urls: strin
   });
   return { hosts, urls };
 }
+
+// ---------------------------------------------------------------------------
+// 在线场景 E2E：本地 mock GitHub API
+// ---------------------------------------------------------------------------
+//
+// 本机环境无法访问 GitHub，导致「在线流程」用例此前只能 test.skip。
+// 这里用 Playwright 的 page.route 拦截 api.github.com / raw.githubusercontent.com，
+// 返回符合真实 GitHub API 形状的响应，从而**真实地跑通在线代码路径**（顶栏解析 →
+// 分支探测 → 拉树 → 找 README → 读文件 → 搜索），而无需任何外部网络。
+
+export interface MockTreeEntry {
+  path: string;
+  type: 'blob' | 'tree';
+  size?: number;
+}
+
+export interface MockSearchItem {
+  full_name: string;
+  description: string | null;
+  stargazers_count: number;
+  language: string | null;
+}
+
+export interface MockGitHubOptions {
+  owner: string;
+  repo: string;
+  /** 默认分支，缺省 main */
+  branch?: string;
+  stars?: number;
+  tree: MockTreeEntry[];
+  /** 相对仓库根的路径 → 文本内容（raw 请求命中） */
+  files: Record<string, string>;
+  /** /search/repositories 返回的条目 */
+  search?: MockSearchItem[];
+}
+
+/** 默认 mock 仓库：覆盖文件树、README、源码与配置文件 */
+export const MOCK_GITHUB: MockGitHubOptions = {
+  owner: 'acme',
+  repo: 'demo',
+  branch: 'main',
+  stars: 128,
+  tree: [
+    { path: 'README.md', type: 'blob', size: 140 },
+    { path: 'package.json', type: 'blob', size: 60 },
+    { path: '.gitignore', type: 'blob', size: 20 },
+    { path: 'src', type: 'tree' },
+    { path: 'src/index.ts', type: 'blob', size: 220 },
+    { path: 'src/util.ts', type: 'blob', size: 120 },
+  ],
+  files: {
+    'README.md':
+      '# Demo Project\n\n一个用于在线场景 E2E 的仓库。\n\n## 用法\n\n```ts\nimport { greet } from \'./src/index\';\n```\n',
+    'package.json': '{\n  "name": "demo",\n  "version": "1.0.0"\n}\n',
+    '.gitignore': 'node_modules\n',
+    'src/index.ts':
+      "import { add } from './util';\n\n/** 打招呼：被调用图与符号索引使用 */\nexport function greet(name: string): string {\n  return `hi ${name}`;\n}\n\nexport function sum(xs: number[]): number {\n  return xs.reduce(add, 0);\n}\n",
+    'src/util.ts': 'export function add(a: number, b: number): number {\n  return a + b;\n}\n',
+  },
+  search: [
+    { full_name: 'acme/demo', description: 'A demo repo', stargazers_count: 128, language: 'TypeScript' },
+    { full_name: 'acme/demo-cli', description: 'CLI demo', stargazers_count: 7, language: 'Go' },
+    { full_name: 'other/demo-tools', description: 'Tooling demo', stargazers_count: 3, language: null },
+  ],
+};
+
+/**
+ * 拦截 GitHub API / raw 内容请求，返回 mock 数据。
+ * 必须在 page.goto 之前调用。
+ */
+export async function mockGitHub(page: Page, opts: MockGitHubOptions): Promise<void> {
+  const branch = opts.branch ?? 'main';
+
+  // api.github.com：repos（分支探测/星标）、git/trees、search/repositories
+  await page.route(/^https:\/\/api\.github\.com\//, async (route) => {
+    const url = new URL(route.request().url());
+    const pathname = url.pathname;
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+    if (pathname === `/repos/${opts.owner}/${opts.repo}`) {
+      return json({ default_branch: branch, stargazers_count: opts.stars ?? 0 });
+    }
+    if (pathname === `/repos/${opts.owner}/${opts.repo}/git/trees/${branch}`) {
+      return json({ tree: opts.tree, truncated: false });
+    }
+    if (pathname === '/search/repositories') {
+      return json({ items: opts.search ?? [] });
+    }
+    return json({ message: `unmocked endpoint: ${pathname}` }, 404);
+  });
+
+  // raw.githubusercontent.com：文件内容（/{owner}/{repo}/{branch}/{path...}）
+  await page.route(/^https:\/\/raw\.githubusercontent\.com\//, async (route) => {
+    const url = new URL(route.request().url());
+    const parts = url.pathname.replace(/^\//, '').split('/');
+    const filePath = parts.slice(3).join('/');
+    const text = opts.files[filePath];
+    if (text === undefined) {
+      return route.fulfill({ status: 404, contentType: 'text/plain', body: 'not found' });
+    }
+    return route.fulfill({ status: 200, contentType: 'text/plain; charset=utf-8', body: text });
+  });
+}
+

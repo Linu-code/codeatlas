@@ -43,6 +43,12 @@
   - **内容**：概览卡片（健康评分 / 文件数 / SLOC / 函数数 / 平均复杂度）、语言分布、热点文件与最复杂函数 Top 20、建议阅读路线、循环依赖、分层（按目录用途）、调用关系图 / 模块依赖图 / 类图（SVG 内联）。
   - **入口**：命令面板 `Ctrl/Cmd+K` →「导出 HTML 报告」（仓库已加载时出现），浏览器与 Tauri 均通过 Blob 下载。
   - 单测 `tests/unit/report.test.ts`（8 例：聚合正确性 + 离线 HTML 输出 + XSS 转义）；E2E `tests/e2e/report-export.spec.ts` 覆盖命令入口。
+- **可访问性（N6 完成）**：键盘导航 / ARIA / 对比度三项系统性补齐。
+  - **对话框焦点陷阱**：新增 `useFocusTrap` hook，套用到设置 / 上下文包 / 命令面板三处 —— 打开时焦点移入并落在首个可聚焦元素，`Tab`/`Shift+Tab` 在对话框内循环不逃逸，`Esc` 关闭，关闭后焦点**归还**到打开前的元素；
+  - **ARIA 语义**：命令面板补 `aria-modal` 与 `listbox`/`option`/`aria-activedescendant`；顶栏搜索框标注 `role="combobox"` + `aria-expanded`/`aria-controls`/`aria-activedescendant`；文件树改为规范 `tree`/`treeitem` + `aria-level`/`aria-selected`/`aria-expanded`；加载指示器加 `role="status"` 实时播报；
+  - **文件树键盘导航**：采用 roving tabindex（单一 Tab 停靠点），支持 `↑↓` 行间移动、`Home/End` 首尾、`→` 展开（已展开则进入子节点）、`←` 折叠（叶子则回到父节点）、`Enter/Space` 激活；
+  - **对比度**：浅色 / atlas-light 主题的次级文本色由 `#6b7280` 调整为 `#5f6670`，在 `--c-bg-2` 上由 4.36:1 提升到 5.2:1，满足 WCAG AA 4.5:1；
+  - 新增 E2E `tests/e2e/a11y.spec.ts`：断言对话框焦点陷阱与焦点归还、命令面板 `aria-activedescendant` 随 `↑↓` 变化、文件树 roving 焦点与 `tree` 语义、四套主题次要文本对比度 ≥ 4.5:1。
 
 ### 变更（工程 / CI）
 
@@ -58,6 +64,7 @@
 - **版本号升 2.0.0**：`package.json` / `Cargo.toml` / `tauri.conf.json` / `App` 状态栏 / `Cargo.lock` 对齐 `2.0.0`（N6 收口，尚未正式打 tag 发布）。
 - **tree-sitter 运行时升级（N6 完成）**：`web-tree-sitter` 由 `0.22.6` 升级到 `0.25.10`（ABI 13–15，与 `tree-sitter-wasms@0.1.13` 语法包配对兼容；14 个语法包 + 共存复解析经 `npm run check:tree-sitter` 验证全绿）。0.26+ 因 dylink 段变更与旧 ABI 语法包不兼容，已通过 Dependabot 忽略。**适配要点**：`parser.ts` 改用 0.25 命名导出（`Language` 不再挂在 `Parser` 静态上，改为 `import('web-tree-sitter').Language`）；新增 `src/web-tree-sitter-aug.d.ts` 把 0.22 的 `SyntaxNode` 兼容别名回贴为宽松节点接口，整套分析代码（langs / metrics / symbols / parser）零改动、`tsc` 与 262 个单测全绿。
 - **工程规范**：补 `.editorconfig`；提交身份改用 GitHub noreply 邮箱。
+- **在线场景 E2E（N6 完成）**：新增 `tests/e2e/github-online.spec.ts`，用 Playwright `page.route` 拦截 `api.github.com` / `raw.githubusercontent.com` 并返回仿真响应，**真实跑通在线代码路径**（顶栏解析 → 分支探测 → 拉树 → 找 README → 读文件 → 搜索），无需真实联网。原先 `test.skip` 的「在线流程只访问 GitHub 域名」用例改为本地 mock 驱动、稳定运行并在 `network-whitelist.spec.ts` 内断言域名白名单与 AI 域名黑名单；验收 2 / 3 / 12（在线部分）由 ⏭️ 转为 ✅。
 
 ### 规划中
 

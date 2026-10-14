@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { rankByFuzzy } from '../utils/fuzzy';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export type PaletteSection = 'command' | 'file' | 'symbol';
 
@@ -45,6 +46,9 @@ export default function CommandPalette({ open, mode, items, onClose }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // 焦点陷阱：Tab 循环 + Esc 关闭 + 关闭后焦点归还
+  useFocusTrap(dialogRef, open, onClose);
 
   const pool = useMemo(
     () => (mode === 'symbol' ? items.filter((i) => i.section === 'symbol') : items),
@@ -116,6 +120,8 @@ export default function CommandPalette({ open, mode, items, onClose }: Props) {
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-40 flex justify-center pt-24"
       style={{ background: 'rgba(0,0,0,0.45)' }}
       onMouseDown={(e) => {
@@ -125,6 +131,7 @@ export default function CommandPalette({ open, mode, items, onClose }: Props) {
     >
       <div
         role="dialog"
+        aria-modal="true"
         aria-label={t('analysis:paletteTitle')}
         className="flex max-h-[60vh] w-[600px] flex-col overflow-hidden rounded-lg border shadow-2xl"
         style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)' }}
@@ -137,11 +144,16 @@ export default function CommandPalette({ open, mode, items, onClose }: Props) {
           onKeyDown={onKeyDown}
           placeholder={mode === 'symbol' ? t('analysis:paletteSymbolPlaceholder') : t('analysis:palettePlaceholder')}
           aria-label={t('analysis:paletteTitle')}
+          role="combobox"
+          aria-expanded={ranked.length > 0}
+          aria-controls="palette-listbox"
+          aria-autocomplete="list"
+          aria-activedescendant={ranked.length > 0 ? `palette-opt-${activeIndex}` : undefined}
           className="h-10 shrink-0 border-b px-3 text-sm outline-none"
           style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
         />
 
-        <div ref={listRef} className="min-h-0 flex-1 overflow-auto py-1">
+        <div ref={listRef} id="palette-listbox" role="listbox" className="min-h-0 flex-1 overflow-auto py-1">
           {ranked.length === 0 && (
             <p className="px-3 py-4 text-xs" style={{ color: 'var(--c-text-2)' }}>
               {t('analysis:paletteNoResult')}
@@ -154,7 +166,7 @@ export default function CommandPalette({ open, mode, items, onClose }: Props) {
               .filter((r) => r.item.section === section);
             if (inSection.length === 0) return null;
             return (
-              <div key={section}>
+              <div key={section} role="group" aria-label={sectionTitle[section]}>
                 <p
                   className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide"
                   style={{ color: 'var(--c-text-2)' }}
@@ -164,6 +176,9 @@ export default function CommandPalette({ open, mode, items, onClose }: Props) {
                 {inSection.map(({ item, index }) => (
                   <button
                     key={item.id}
+                    id={`palette-opt-${index}`}
+                    role="option"
+                    aria-selected={index === activeIndex}
                     data-palette-index={index}
                     data-palette-item={item.section}
                     onMouseEnter={() => setActiveIndex(index)}

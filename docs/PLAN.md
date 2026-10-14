@@ -210,6 +210,6 @@ Tauri 二进制冷启动本身 <500ms；UI 首屏只渲染布局骨架，tree-si
 
 ### 未在此环境验证的部分
 
-- 在线加载 GitHub 仓库（本机网络受限，E2E 自动跳过）
+- 在线加载 GitHub 仓库（~~本机网络受限，E2E 自动跳过~~ → **2.0 N6 起**：在线流程改用本地 mock 驱动，无需真实网络即可断言；见 `tests/e2e/github-online.spec.ts`）
 - 桌面端 ZIP 拖入 + 多窗口（Tauri 窗口级能力，需 `npm run tauri dev` 或 exe 中人工验证）
 - 导出 SVG/PNG 的文件落地（E2E 只断言按钮可用态）

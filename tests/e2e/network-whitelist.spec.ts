@@ -4,12 +4,24 @@
  * 验收要求：除 GitHub API 外不发起任何外部请求；没有任何 AI/LLM 调用。
  * 本文件把该要求固化为断言：
  *   1. 完全离线流程（ZIP + 全部分析面板）→ 除自身源站外**零外部请求**
- *   2. 在线流程（加载 GitHub 仓库）→ 请求域名只能是 api.github.com / raw.githubusercontent.com
+ *   2. 在线流程（加载 GitHub 仓库，用本地 mock 驱动）→ 请求域名只能是
+ *      api.github.com / raw.githubusercontent.com
  *      并且**不允许出现任何已知 AI 服务域名**（防御性黑名单）
+ *
+ * 说明：本机无法访问 GitHub，在线用例改用 page.route 拦截的两个域名的 mock
+ * 响应来驱动——真实网络请求仍会触发 request 事件，因此域名白名单断言依旧有效，
+ * 且用例无需真实联网即可稳定运行（不再 test.skip）。
  */
 
 import { expect, test } from '@playwright/test';
-import { buildFixtureZip, clickToolbar, loadFixtureZip, trackRequestHosts } from './helpers';
+import {
+  MOCK_GITHUB,
+  buildFixtureZip,
+  clickToolbar,
+  loadFixtureZip,
+  mockGitHub,
+  trackRequestHosts,
+} from './helpers';
 
 /** 已知 AI / LLM 服务域名（出现即视为违反硬性约束） */
 const AI_HOSTS = [
@@ -67,52 +79,31 @@ test('离线流程（ZIP + 分析面板）不产生任何外部请求', async ({
   }
 });
 
-test('在线流程只访问 GitHub 域名（网络不可用时自动跳过）', async ({ page }) => {
-  // 该用例依赖真实 GitHub 网络；给较短的失败判定，避免拖慢整个 E2E
-  test.setTimeout(90_000);
+test('在线流程只访问 GitHub 域名（本地 mock，可离线稳定运行）', async ({ page }) => {
   const tracker = trackRequestHosts(page);
+  // 拦截 GitHub API / raw 内容请求，返回仿真数据以驱动真实在线代码路径
+  await mockGitHub(page, MOCK_GITHUB);
 
-  let loaded = false;
-  let message = '';
-  let hosts: string[] = [];
+  await page.goto('/');
+  // 顶栏输入框现为 combobox 角色（可访问性改造后）
+  const input = page.locator('header').getByRole('combobox').first();
+  await input.fill('https://github.com/acme/demo');
+  await input.press('Enter');
 
-  try {
-    await page.goto('/');
-    // 用体积很小的公开仓库，减少 API 配额消耗
-    // 注意：顶栏输入框没有显式 type 属性，这里用 role 定位而非属性选择器
-    const input = page.locator('header').getByRole('textbox').first();
-    await input.fill('https://github.com/sindresorhus/is-odd');
-    await input.press('Enter');
+  // 等待在线加载完成：文件树与 README 可见
+  await expect(page.locator('aside').first()).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText('README.md').first()).toBeVisible({ timeout: 20_000 });
 
-    // 等待加载结果：成功（出现文件树）或失败（出现错误横幅）
-    const tree = page.locator('aside').first();
-    const errorBanner = page.locator('[role="alert"]');
-    await Promise.race([
-      tree.waitFor({ state: 'visible', timeout: 25_000 }).catch(() => null),
-      errorBanner.waitFor({ state: 'visible', timeout: 25_000 }).catch(() => null),
-    ]);
+  // 域名数据在 Node 侧已收集完毕
+  const hosts = [...tracker.hosts].filter(
+    (h) => !h.startsWith('localhost') && !h.startsWith('127.0.0.1'),
+  );
 
-    loaded = await tree.isVisible().catch(() => false);
-    message = loaded ? '' : ((await errorBanner.textContent().catch(() => '')) ?? '').trim();
-
-    // 域名数据在 Node 侧已收集完毕，无需页面继续存活
-    hosts = [...tracker.hosts].filter(
-      (h) => !h.startsWith('localhost') && !h.startsWith('127.0.0.1'),
-    );
-  } finally {
-    // 显式关闭页面：网络受限时页面上可能残留挂起的请求，
-    // 若交给框架回收会导致 worker 无法退出（表现为整个 E2E 卡住数分钟）。
-    await page.close({ runBeforeUnload: false }).catch(() => null);
-  }
-
-  if (!loaded) {
-    test.skip(true, `GitHub 不可达或已限流（提示：${message || 'timeout'}）——本用例允许跳过`);
-  }
-
-  // 成功加载：断言域名白名单
+  // 成功加载：断言域名白名单（只允许 GitHub 域）
   for (const host of hosts) {
     expect(ALLOWED_GITHUB_HOSTS.has(host), `不允许请求 ${host}`).toBe(true);
   }
+  // 确实走过了 GitHub API（而非只命中缓存）
   expect(
     hosts.some((h) => h === 'api.github.com') || hosts.some((h) => h === 'raw.githubusercontent.com'),
   ).toBe(true);

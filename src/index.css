@@ -16,7 +16,7 @@
   --c-bg-3: #e9ecef;
   --c-border: #e1e4e8;
   --c-text: #1f2328;
-  --c-text-2: #6b7280;
+  --c-text-2: #5f6670;      /* 在 --c-bg-2(#f3f4f6) 上达 5.2:1，满足 WCAG AA 4.5:1 */
   --c-primary: #4a6cf7;
   --c-primary-hover: #3b5bdb;
   --c-success: #16a34a;
@@ -96,7 +96,7 @@
   --c-bg-3: #eef1f6;
   --c-border: #e3e6ec;
   --c-text: #2c2f36;        /* 不用纯黑 */
-  --c-text-2: #6b7280;
+  --c-text-2: #5f6670;      /* 在浅色背景上达 5.2:1，满足 WCAG AA */
   --c-primary: #4a6cf7;
   --c-primary-hover: #3b5bdb;
   --c-accent: #7c9eff;

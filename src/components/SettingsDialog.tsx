@@ -9,7 +9,7 @@
  *   · 缓存用量 + 清除缓存
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AppConfig, Language, ThemeId } from '../types/config';
 import { LANGUAGES, saveLanguage } from '../i18n';
@@ -17,6 +17,7 @@ import { THEME_OPTIONS, applyTheme, saveTheme } from '../theme/themes';
 import { cacheStats, clearAllCache } from '../sources/cache';
 import { analysisCacheStats, clearAllAnalysisCache } from '../analysis/analysisCache';
 import { loadToken, saveToken } from '../utils/configStore';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   open: boolean;
@@ -27,6 +28,8 @@ interface Props {
 
 export default function SettingsDialog({ open, onClose, config, onConfigChange }: Props) {
   const { t, i18n } = useTranslation(['common']);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open, onClose);
   const [token, setToken] = useState('');
   const [stats, setStats] = useState({ trees: 0, files: 0, analysis: 0 });
   const [cleared, setCleared] = useState(false);
@@ -71,6 +74,8 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-50 grid place-items-center"
       style={{ background: 'rgba(0,0,0,0.45)' }}
       onClick={onClose}

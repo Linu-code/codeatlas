@@ -152,6 +152,13 @@ export default function TopBar({
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             placeholder={t('common:search')}
             aria-label={t('common:search')}
+            role="combobox"
+            aria-expanded={showDropdown}
+            aria-controls="topbar-search-listbox"
+            aria-autocomplete="list"
+            aria-activedescendant={
+              showDropdown && highlight >= 0 ? `topbar-opt-${highlight}` : undefined
+            }
             className="h-8 w-full rounded-full border px-4 text-sm outline-none transition-colors"
             style={{
               background: 'var(--c-bg)',
@@ -172,6 +179,7 @@ export default function TopBar({
 
           {showDropdown && (
             <ul
+              id="topbar-search-listbox"
               className="absolute top-9 z-30 max-h-80 w-full overflow-auto rounded-lg border py-1 shadow-xl"
               style={{ background: 'var(--c-bg-2)', borderColor: 'var(--c-border)' }}
               role="listbox"
@@ -179,6 +187,7 @@ export default function TopBar({
               {searchResults.map((r, i) => (
                 <li
                   key={r.fullName}
+                  id={`topbar-opt-${i}`}
                   role="option"
                   aria-selected={i === highlight}
                   onMouseEnter={() => setHighlight(i)}

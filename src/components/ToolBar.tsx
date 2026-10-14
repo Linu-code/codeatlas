@@ -51,8 +51,10 @@ export default function ToolBar({
     active: boolean,
     onClick: () => void,
     disabled = false,
+    testId?: string,
   ) => (
     <button
+      data-testid={testId}
       onClick={onClick}
       disabled={disabled}
       className="rounded border px-2 py-0.5 disabled:opacity-40"
@@ -95,7 +97,7 @@ export default function ToolBar({
       {btn(t('common:refresh'), false, onRefresh, !hasProject)}
 
       <div className="ms-auto flex items-center gap-2">
-        {btn(t('common:settings'), false, onOpenSettings)}
+        {btn(t('common:settings'), false, onOpenSettings, false, 'open-settings')}
         {isTauri() && btn(t('common:closeWindow'), false, () => void closeWindow())}
       </div>
     </div>

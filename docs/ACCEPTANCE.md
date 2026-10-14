@@ -7,8 +7,8 @@
 | # | 验收标准 | 验证方式 | 结果 |
 |---|----------|----------|------|
 | 1 | 双击 exe 能启动，界面正常显示 | `npm run build:exe` 后双击 `src-tauri/target/release/codeatlas.exe`；已实测进程启动、窗口标题 `CodeAtlas`、内存 ~37 MB | ✅ |
-| 2 | 输入 `https://github.com/facebook/react` 能加载文件树和 README | 应用内操作；对应实现见 📄 `src/sources/github.ts`、`src/hooks/useRepo.ts` | ⏭️ 需联网（本机 E2E 环境无法访问 GitHub，用例自动跳过） |
-| 3 | 输入 `react` 能显示搜索结果列表 | 同上，📄 `src/utils/githubUrl.ts`（输入三分判定）+ `searchRepositories()` | ⏭️ 需联网 |
+| 2 | 输入 `https://github.com/facebook/react` 能加载文件树和 README | E2E `tests/e2e/github-online.spec.ts`（用 `page.route` mock GitHub API/raw，断言文件树出现 + README 自动打开渲染）；📄 `src/sources/github.ts`、`src/hooks/useRepo.ts` | ✅（本地 mock，无需真实联网） |
+| 3 | 输入 `react` 能显示搜索结果列表 | E2E `tests/e2e/github-online.spec.ts`（mock `/search/repositories`，断言下拉 `listbox` + 条目数 + combobox 键盘导航）；📄 `src/utils/githubUrl.ts`（输入三分判定）+ `searchRepositories()` | ✅（本地 mock） |
 | 4 | 上传本地 ZIP 后能浏览文件和代码 | E2E `tests/e2e/zip-offline.spec.ts`（2 个用例） | ✅ |
 | 5 | 点击 JS/TS/Python 文件后能生成调用关系图 | E2E `tests/e2e/analysis-panels.spec.ts`（Mermaid SVG + 节点断言） | ✅ |
 | 6 | 切换中/英/日，所有 UI 文本实时变化 | E2E `tests/e2e/i18n-theme.spec.ts`（中→英→日，含 `<html lang>` 断言）；单测 `tests/unit/i18n.test.ts` 强制三语言键结构一致 | ✅ |
@@ -17,7 +17,7 @@
 | 9 | 顶栏输入仓库名回车直接出结果，无需点按钮 | E2E 覆盖回车提交路径；📄 `TopBar.tsx` 的 `onKeyDown`（空输入无响应） | ✅ |
 | 10 | 切到 CodeAtlas 专属主题后配色明显区别于普通深色 | E2E 断言 `data-theme` 为 `atlas-dark` 且 `--c-bg` 为 `#1b1d23`（普通深色为 `#1e1e1e`） | ✅ |
 | 11 | 系统主题切换时，"跟随系统"实时变化 | E2E 用 `colorScheme: dark/light` 两个上下文分别断言 `dark` / `atlas-light` | ✅ |
-| 12 | 除 GitHub API 外无任何外部请求 | E2E `tests/e2e/network-whitelist.spec.ts`：离线全流程断言零外部域名；在线流程断言仅 GitHub 域；另含 AI 域名黑名单。第三层为 Tauri CSP（`tauri.conf.json`）与代码级 `assertAllowedUrl()` | ✅（离线部分）/ ⏭️（在线部分需联网） |
+| 12 | 除 GitHub API 外无任何外部请求 | E2E `tests/e2e/network-whitelist.spec.ts`：离线全流程断言零外部域名；在线流程改用本地 mock 驱动，断言仅 GitHub 域 + AI 域名黑名单。第三层为 Tauri CSP（`tauri.conf.json`）与代码级 `assertAllowedUrl()` | ✅（离线 + 在线两部分均已覆盖） |
 | 13 | 右键或 F12 能跳转到跨文件函数定义 | E2E `符号跳转：Ctrl+单击标识符跳到定义文件`（断言跳到 `src/util.ts`）；📄 `src/analysis/scopeGraph.ts` | ✅ |
 | 14 | 度量面板显示圈复杂度与认知复杂度并按复杂度排序 | E2E `代码度量：健康评分 + 复杂度表格`；单测 `tests/unit/metrics.test.ts` 断言精确数值（如嵌套加权认知复杂度 = 6） | ✅ |
 | 15 | 调用图可导出 SVG 与 PNG，导出清晰 | 📄 `CallGraphPanel.tsx`：SVG 走 Blob 下载；PNG 走 SVG→Image→Canvas **2 倍缩放**→`toBlob`；E2E 断言导出按钮在渲染完成后可用 | ✅（导出按钮态由 E2E 断言，文件落地需人工点击） |
@@ -47,13 +47,15 @@
 | N4 缓存记录三重校验 | `v / hash / path` 任一不符即视为未命中，metrics 缺失兼容旧记录 | 单测 `tests/unit/analysisCache.test.ts`（10 例） | ✅ |
 | N4 缓存键命名空间 | github 源 `owner/repo@branch`、zip 源 `meta.name`，不同仓库互不串缓存 | 单测 `analysisCache.test.ts` 的键拼接用例 | ✅ |
 | N4 无环境降级 | IndexedDB 不可用时读写返回 null，主流程照常全量分析 | 单测 `analysisCache.test.ts`（Node 环境安全返回 null） | ✅ |
-| N4 增量分析 | 冷缓存不显示提示；二次打开命中缓存，状态栏「缓存命中 5 个文件 · 重解析 0 个」，符号跳转不退化 | E2E `tests/e2e/incremental-analysis.spec.ts`（1 例）；全量 E2E 23/24（含 N5① 降级、N5② 导出命令入口，1 个联网用例自动跳过） | ✅ |
+| N4 增量分析 | 冷缓存不显示提示；二次打开命中缓存，状态栏「缓存命中 5 个文件 · 重解析 0 个」，符号跳转不退化 | E2E `tests/e2e/incremental-analysis.spec.ts`（1 例）；全量 E2E 30/30（含 N5① 降级、N5② 导出命令入口、N6 在线 mock 与可访问性；原先联网跳过的在线用例已改为本地 mock 驱动） | ✅ |
 | **N5①** 本地目录数据源 | 点「打开本地目录」用系统对话框选文件夹后，文件树/README/分析可用；浏览器模式按钮隐藏；拖入文件夹打开独立新窗口 | 📄 `src/sources/local.ts`（`LocalDirSource` 实现 `RepoFS`）、`src-tauri/src/lib.rs`（`read_dir`/`read_text_file`/`select_dir`）；单测 `tests/unit/localDir.test.ts`（4 例：非 Tauri 抛 not-found-dir / 空目录抛 empty-zip / 正常打开 + 路径穿越拦截）；E2E `tests/e2e/local-dir-degrade.spec.ts`（2 例：默认语言 + 三语言切换下按钮隐藏） | ✅（单测 + E2E 降级 + Rust 编译）/ ⏭️（桌面端真实加载需 GUI） |
 | N5① 防爆与缓存隔离 | `MAX_SCAN_ENTRIES=200_000` 静默截断、`MAX_DEPTH=24` 防符号链接环、跳过 12 个构建/依赖目录；缓存 `local:<绝对路径去尾>` 命名空间防同名串缓存 | 📄 `src/sources/local.ts`（`read_dir` 防爆 + `cacheNs`）、`src-tauri/src/lib.rs`（`walk_dir` 深度优先 + `SKIP_DIRS`） | ✅（单测 + 代码审查） |
 | **N5②** HTML 报告导出 | 命令面板「导出 HTML 报告」生成单文件离线 HTML（架构概览 + 度量 + 图 + 阅读路线），可分享可归档；零外部请求、双击即开 | 📄 `src/report/buildReport.ts`（`buildReportModel` 纯聚合 + `renderReportHtml` 自包含 HTML）、`src/report/exportReport.ts`（Mermaid→SVG 内联 + Blob 下载）；单测 `tests/unit/report.test.ts`（8 例）；E2E `tests/e2e/report-export.spec.ts`（1 例，命令入口可见） | ✅（单测 + E2E 入口 + 类型检查）/ ⏭️（实际下载落地需人工点击） |
 | N5② 离线与 XSS | 报告内联 CSS、无 `http(s)://` 外链；文件名特殊字符被转义 | 单测 `report.test.ts` 断言产物不含外链、`<script>` 被转义 | ✅ |
 | **N6** 版本号 2.0.0 | package.json / Cargo.toml / Cargo.lock（codeatlas 包）/ tauri.conf.json / App.tsx 状态栏全部对齐 2.0.0 | 代码审查 + grep 五处 `1.0.0` → `2.0.0`；`npm run check:tree-sitter` 与 `tsc -b` 仍绿 | ✅ |
-| **N6** ABI 升级（web-tree-sitter 0.22 → 0.25） | 运行时与 14 个语法包 ABI 兼容，解析正常、共存复解析正常；前端 / Worker / Rust 编译全绿 | `npm run check:tree-sitter`（14 个语法包 + 共存复解析全绿，LANGUAGE_VERSION=15）；`tsc -b` 绿；单测 262/262；E2E 23/24（1 个联网用例自动跳过）；`npm run build:exe` 产出 CodeAtlas.exe（10.4 MB）+ CodeAtlas_2.0.0_x64-setup.exe（4.8 MB） | ✅ |
+| **N6** ABI 升级（web-tree-sitter 0.22 → 0.25） | 运行时与 14 个语法包 ABI 兼容，解析正常、共存复解析正常；前端 / Worker / Rust 编译全绿 | `npm run check:tree-sitter`（14 个语法包 + 共存复解析全绿，LANGUAGE_VERSION=15）；`tsc -b` 绿；单测 262/262；E2E 30/30；`npm run build:exe` 产出 CodeAtlas.exe（10.4 MB）+ CodeAtlas_2.0.0_x64-setup.exe（4.8 MB） | ✅ |
+| **N6** 在线场景 E2E | 本机无真实 GitHub 网络时，在线流程（加载仓库 / 搜索）仍被真实执行并断言 | E2E `tests/e2e/github-online.spec.ts`（`page.route` mock `api.github.com` / `raw.githubusercontent.com`，断言文件树 + README 渲染 + 搜索结果 `listbox` + combobox 键盘导航）；`network-whitelist.spec.ts` 在线用例改 mock 驱动、断言仅 GitHub 域，不再 `test.skip` | ✅ |
+| **N6** 可访问性 | 键盘导航 / ARIA / 对比度三项达标 | E2E `tests/e2e/a11y.spec.ts`（对话框焦点陷阱 + Esc + 焦点归还；命令面板 `aria-activedescendant` 随 `↑↓` 变化；文件树 roving tabindex + `tree`/`treeitem` 语义；四套主题次要文本对比度 ≥ WCAG AA 4.5:1）；📄 `src/hooks/useFocusTrap.ts`、`src/components/{CommandPalette,TopBar,FileTree,SettingsDialog,ContextPackDialog}.tsx`、`src/index.css` | ✅ |
 
 > 说明：C# / C++ 的语法树不区分类与接口，Kotlin 靠 `Base()` 括号区分，Ruby 的 `include` 不算继承 ——
 > 这些差异都写在对应 LangHandler 的注释里，面板统计行也会如实标注（不给"看起来很对"的假信息）。
@@ -64,7 +66,7 @@
 # 单元测试（262 个用例，实际数量以 npm test 输出为准）
 npm test
 
-# E2E（8 个 spec / 24 个用例，含 1 个联网自动跳过；截图生成到 docs/screenshots/）
+# E2E（10 个 spec / 30 个用例；截图生成到 docs/screenshots/）
 npm run build && npm run e2e
 
 # tree-sitter 语法包自检（14 个语法包逐一解析 + 共存复解析）
@@ -76,9 +78,8 @@ npm run build:exe
 
 ## 环境相关说明（诚实记录）
 
-- **验收 2/3/8/12（在线部分）** 依赖真实 GitHub 网络或桌面 GUI：
-  - 本机 E2E 运行环境访问 GitHub 受限，网络类用例设计为**自动跳过**（`test.skip` 并在报告中标注原因），不会伪装成通过；
-  - 拖拽与多窗口是 Tauri 窗口级能力，浏览器模式下不存在，需在 `npm run tauri dev` 或 exe 中人工验证。
+- **验收 2/3/12（在线部分）** 现由本地 mock 覆盖：E2E 用 `page.route` 拦截 `api.github.com` / `raw.githubusercontent.com` 并返回仿真响应，**真实跑通在线代码路径**（顶栏解析 → 分支探测 → 拉树 → 找 README → 读文件 → 搜索），不再依赖真实 GitHub 网络、也不再 `test.skip`。
+- **验收 8（拖拽 / 多窗口）** 是 Tauri 窗口级能力，浏览器模式下不存在，需在 `npm run tauri dev` 或 exe 中人工验证（E2E 环境跳过）。
 - **验收 1/8 的桌面部分** 已通过实际启动 exe 验证（进程 + 窗口标题 + 内存占用），拖拽多窗口建议按 README 步骤人工过一遍。
 
 ## 已修复的真实缺陷（由本轮验收发现）

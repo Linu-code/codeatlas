@@ -8,9 +8,10 @@
  *   · 预算可在设置页调整（默认 1000，验收要求 ≤ 2000）
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ContextPack } from '../analysis/contextPack';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
   open: boolean;
@@ -40,6 +41,8 @@ export default function ContextPackDialog({
   onClose,
 }: Props) {
   const { t } = useTranslation(['analysis', 'common']);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open, onClose);
   const [tab, setTab] = useState<'md' | 'json'>('md');
   const [copied, setCopied] = useState(false);
 
@@ -54,6 +57,8 @@ export default function ContextPackDialog({
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-50 grid place-items-center"
       style={{ background: 'rgba(0,0,0,0.45)' }}
       onClick={onClose}

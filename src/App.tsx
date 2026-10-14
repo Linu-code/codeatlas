@@ -586,7 +586,12 @@ export default function App() {
 
           <div className="min-h-0 flex-1">
             {repo.loading && (
-              <div className="grid h-full place-items-center text-xs" style={{ color: 'var(--c-text-2)' }}>
+              <div
+                className="grid h-full place-items-center text-xs"
+                style={{ color: 'var(--c-text-2)' }}
+                role="status"
+                aria-live="polite"
+              >
                 <span className="flex items-center gap-2">
                   <span className="ca-spinner" aria-hidden />
                   {t('common:loading')}
