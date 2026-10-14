@@ -14,14 +14,16 @@ export interface FileNode {
 }
 
 export interface RepoMeta {
-  /** 展示名：GitHub 为 owner/repo，ZIP 为文件名 */
+  /** 展示名：GitHub 为 owner/repo，ZIP 为文件名，本地目录为目录名 */
   name: string;
-  source: 'github' | 'zip';
+  source: 'github' | 'zip' | 'local';
   owner?: string;
   repo?: string;
   branch?: string;
-  /** 仓库星标数（搜索结果/仓库信息可拿到，ZIP 无） */
+  /** 仓库星标数（搜索结果/仓库信息可拿到，ZIP/本地目录无） */
   stars?: number;
+  /** 本地目录源：被打开目录的绝对路径（缓存命名空间 + 读取基址） */
+  rootPath?: string;
 }
 
 /** README 候选文件名（按优先级） */
@@ -58,6 +60,7 @@ export type RepoErrorCode =
   | 'bad-zip'         // ZIP 格式错误
   | 'empty-zip'       // ZIP 无有效文件
   | 'zip-insecure'    // ZIP 内含路径穿越条目（安全拦截）
+  | 'not-found-dir'   // 本地目录不存在 / 无权限 / 非目录
   | 'parse-error';    // 文件解析失败
 
 export class RepoError extends Error {

@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RepoFS, RepoError, RepoSearchResult, FileNode, isBinaryPath } from '../types/repo';
-import { createGithubRepo, createZipRepo, createZipRepoFromBytes } from '../sources/factory';
+import { createGithubRepo, createLocalDirRepo, createZipRepo, createZipRepoFromBytes } from '../sources/factory';
 import { searchRepositories } from '../sources/github';
 import { resolveTopBarInput } from '../utils/githubUrl';
 import { isPreviewable, prismLangOf } from '../theme/themes';
@@ -66,8 +66,15 @@ export function useRepo(options: UseRepoOptions = {}) {
   const [history, setHistory] = useState<string[]>([]);
 
   const requestIdRef = useRef(0);
-  /** 记住最后一次加载目标，供"刷新"复用 */
-  const lastTargetRef = useRef<{ owner: string; repo: string; branch: string | null; subDir: string | null } | null>(null);
+  /**
+   * 记住最后一次加载目标，供"刷新"复用。
+   * GitHub：owner/repo 解析结果；本地目录：绝对路径。
+   */
+  const lastTargetRef = useRef<
+    | { kind: 'github'; owner: string; repo: string; branch: string | null; subDir: string | null }
+    | { kind: 'local'; rootPath: string }
+    | null
+  >(null);
 
   const pushHistory = useCallback((input: string) => {
     setHistory((prev) => [input, ...prev.filter((h) => h !== input)].slice(0, HISTORY_LIMIT));
@@ -139,7 +146,7 @@ export function useRepo(options: UseRepoOptions = {}) {
       setLoading(true);
       setError(null);
       setSearchResults([]);
-      lastTargetRef.current = parsed;
+      lastTargetRef.current = { kind: 'github', ...parsed };
       try {
         const source = createGithubRepo(parsed, { token, jsdelivrFallback, forceRefresh: opts.forceRefresh });
         if (opts.forceRefresh && 'clearCache' in source) {
@@ -196,12 +203,36 @@ export function useRepo(options: UseRepoOptions = {}) {
     [mountSource],
   );
 
+  /** 打开本地目录（N5①：仅 Tauri 桌面端；浏览器请先提示"仅桌面版支持"） */
+  const loadLocalDir = useCallback(
+    async (rootPath: string) => {
+      const rid = ++requestIdRef.current;
+      setLoading(true);
+      setError(null);
+      setSearchResults([]);
+      lastTargetRef.current = { kind: 'local', rootPath };
+      try {
+        await mountSource(await createLocalDirRepo(rootPath), rid);
+      } catch (e) {
+        if (rid !== requestIdRef.current) return;
+        setError(e instanceof RepoError ? e : new RepoError('not-found-dir', String(e)));
+      } finally {
+        if (rid === requestIdRef.current) setLoading(false);
+      }
+    },
+    [mountSource],
+  );
+
   /** 刷新：清缓存重拉（验收：支持手动刷新） */
   const refresh = useCallback(async () => {
     const target = lastTargetRef.current;
     if (!target) return;
+    if (target.kind === 'local') {
+      await loadLocalDir(target.rootPath);
+      return;
+    }
     await loadRepo(target, { forceRefresh: true });
-  }, [loadRepo]);
+  }, [loadLocalDir, loadRepo]);
 
   /** 搜索仓库 */
   const runSearch = useCallback(
@@ -273,6 +304,7 @@ export function useRepo(options: UseRepoOptions = {}) {
     submit,
     loadZip,
     loadZipBytes,
+    loadLocalDir,
     refresh,
     openFile: (path: string) => (fs ? openFile(path, fs) : Promise.resolve()),
     closeTab,

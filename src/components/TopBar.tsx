@@ -25,6 +25,8 @@ interface TopBarProps {
   onSubmit: (raw: string) => void;
   onPickResult: (fullName: string) => void;
   onOpenZip: (file: File) => void;
+  /** N5①：Tauri 桌面端用原生对话框打开本地目录；浏览器传入 null 即隐藏按钮 */
+  onOpenLocalDir: (() => void) | null;
   theme: ThemeId;
   onThemeChange: (theme: ThemeId) => void;
   language: Language;
@@ -38,6 +40,7 @@ export default function TopBar({
   onSubmit,
   onPickResult,
   onOpenZip,
+  onOpenLocalDir,
   theme,
   onThemeChange,
   language,
@@ -214,6 +217,16 @@ export default function TopBar({
         >
           {t('common:openZip')}
         </button>
+        {/* N5①：桌面端打开本地目录；浏览器里无文件系统权，直接隐藏 */}
+        {onOpenLocalDir && (
+          <button
+            onClick={onOpenLocalDir}
+            className="h-8 rounded border px-3 text-xs"
+            style={{ borderColor: 'var(--c-border)', background: 'var(--c-bg)' }}
+          >
+            {t('common:openLocalDir')}
+          </button>
+        )}
         <ThemeLanguageControls
           theme={theme}
           onThemeChange={onThemeChange}

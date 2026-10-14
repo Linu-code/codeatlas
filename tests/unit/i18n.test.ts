@@ -66,6 +66,7 @@ describe('i18n 资源完整性', () => {
       'bad-zip',
       'empty-zip',
       'zip-insecure',
+      'not-found-dir',
       'parse-error',
     ];
     for (const lang of LANGUAGES) {

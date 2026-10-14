@@ -42,6 +42,29 @@ export async function readFileBytes(path: string): Promise<Uint8Array | null> {
   return bytes;
 }
 
+/**
+ * N5①：递归列出本地目录（Rust read_dir）。
+ * 返回相对 POSIX 路径 + is_dir + size；非 Tauri 环境返回 null（调用方降级提示）。
+ */
+export async function listLocalDir(
+  path: string,
+): Promise<{ path: string; is_dir: boolean; size: number }[] | null> {
+  return invokeSafe<{ path: string; is_dir: boolean; size: number }[]>('read_dir', { path });
+}
+
+/** N5①：直接读 UTF-8 文本（避免 base64 编解码开销）；非 Tauri 环境返回 null */
+export async function readLocalText(path: string): Promise<string | null> {
+  return invokeSafe<string>('read_text_file', { path });
+}
+
+/**
+ * N5①：弹原生目录选择对话框（rfd）。
+ * 用户取消 / 非 Tauri 环境返回 null。
+ */
+export async function selectLocalDir(): Promise<string | null> {
+  return invokeSafe<string>('select_dir');
+}
+
 export interface DropEventPayload {
   paths: string[];
 }
@@ -77,10 +100,22 @@ export async function onFileDrop(
  * 新窗口通过 URL 参数 zippath 告知自己要加载哪个文件。
  */
 export async function openZipWindow(zipPath: string, title: string): Promise<boolean> {
+  return openProjectWindow(zipPath, 'zippath', title);
+}
+
+/**
+ * N5①：为本地目录打开一个独立窗口（与 ZIP 行为一致：原窗口状态不变）。
+ * 新窗口通过 URL 参数 localdir 告知自己要加载哪个目录。
+ */
+export async function openLocalDirWindow(dirPath: string, title: string): Promise<boolean> {
+  return openProjectWindow(dirPath, 'localdir', title);
+}
+
+async function openProjectWindow(target: string, param: 'zippath' | 'localdir', title: string): Promise<boolean> {
   if (!isTauri()) return false;
   const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-  const label = `zip-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const url = `index.html?win=${label}&zippath=${encodeURIComponent(zipPath)}`;
+  const label = `proj-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const url = `index.html?win=${label}&${param}=${encodeURIComponent(target)}`;
   try {
     const win = new WebviewWindow(label, {
       url,
@@ -102,8 +137,8 @@ export async function openZipWindow(zipPath: string, title: string): Promise<boo
 }
 
 /** 当前窗口标签与启动参数（多窗口入口用） */
-export function windowParams(): { label: string | null; zipPath: string | null } {
-  if (typeof window === 'undefined') return { label: null, zipPath: null };
+export function windowParams(): { label: string | null; zipPath: string | null; localDir: string | null } {
+  if (typeof window === 'undefined') return { label: null, zipPath: null, localDir: null };
   const params = new URLSearchParams(window.location.search);
-  return { label: params.get('win'), zipPath: params.get('zippath') };
+  return { label: params.get('win'), zipPath: params.get('zippath'), localDir: params.get('localdir') };
 }

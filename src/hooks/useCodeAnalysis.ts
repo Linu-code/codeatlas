@@ -161,10 +161,15 @@ export function useCodeAnalysis() {
       // N4：增量统计
       let cachedCount = 0;
       let failedCount = 0;
-      /** 本仓库的分析缓存命名空间（复用 repoKey：owner/repo@branch，本地源用 name） */
+      /**
+       * 本仓库的分析缓存命名空间。
+       * github：owner/repo@branch；zip：文件名；local：目录绝对路径（防不同目录同名冲突）。
+       */
       const cacheNs = fs.meta.source === 'github'
         ? `${fs.meta.owner ?? ''}/${fs.meta.repo ?? ''}@${fs.meta.branch ?? 'HEAD'}`
-        : fs.meta.name;
+        : fs.meta.source === 'local' && fs.meta.rootPath
+          ? `local:${fs.meta.rootPath.replace(/[\\/]+$/, '')}`
+          : fs.meta.name;
 
       const queue = [...targets];
       const worker = async () => {

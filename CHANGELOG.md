@@ -30,6 +30,14 @@
   - 缓存键按仓库命名空间隔离：github 源 `owner/repo@branch`，zip 源用文件名；
   - 状态栏显示增量统计「缓存命中 N 个文件 · 重解析 M 个」；设置页可一键清空分析缓存；
   - IndexedDB 不可用时（Node 单测 / 隐私模式）静默降级为全量分析，主流程不受影响。
+- **本地目录 / 本地 Git 仓库数据源（N5① 完成）**：彻底摆脱"必须先打包 zip"——桌面端点顶栏「打开本地目录」用系统原生对话框选文件夹后，直接在 App 内浏览与分析本地文件夹（含 git 工作区）。
+  - **Rust 极薄层**：新增 `read_dir` / `read_text_file` / `select_dir` 三个命令（`src-tauri/src/lib.rs`），`select_dir` 用 `rfd 0.15` 直接调系统原生对话框，避开 Tauri 2 的 capabilities 权限清单；
+  - **前端 `LocalDirSource`**：实现 `RepoFS` 契约（`src/sources/local.ts`），上层 `useRepo` / `useCodeAnalysis` **零感知**地复用同一套挂载、缓存、分析编排；文本走 `read_text_file` 免 base64，二进制走 `read_file_base64`；
+  - **防爆策略**：`MAX_SCAN_ENTRIES=200_000` 静默截断、`MAX_DEPTH=24` 防符号链接环、无权限子目录跳过不中断、跳过 12 个典型构建/依赖目录（`.git/node_modules/dist/build/out/target/.next/.nuxt/.venv/venv/__pycache__/.idea`，大小写不敏感）；
+  - **缓存命名空间扩展**：`cacheNs` 新增 `local:<绝对路径去尾>` 形态（github 仍 `owner/repo@branch`、zip 仍 `name`），同名目录互不串缓存；
+  - **浏览器降级**：非 Tauri 环境（纯 `vite preview`）下 `invokeSafe` 返回 null，`TopBar` 的「打开本地目录」按钮自动隐藏，拖入文件夹不会触发崩溃；E2E `tests/e2e/local-dir-degrade.spec.ts` 覆盖默认语言 + 中/英/日切换三态；
+  - **多窗口一致性**：拖入文件/目录时每个目标打开**独立窗口**（`openProjectWindow` 统一 `zippath/localdir` 参数），当前窗口不被"吃掉"（验收 8 延伸）；
+  - **路径安全**：前端 `absPath()` 拒绝 `../` / 绝对路径 / `C:` 盘符穿越并抛 `zip-insecure`；Rust 跳过非 UTF-8 文件名；新增错误码 `not-found-dir`；单测 `tests/unit/localDir.test.ts`（4 例）固化上述行为。
 
 ### 变更（工程 / CI）
 
@@ -46,7 +54,7 @@
 
 ### 规划中
 
-- **2.0**（核心升级）：分析结果持久化与增量分析、HTML 报告导出、本地目录数据源。多语言支持、规模提升、阅读路线与命令面板、架构视图已在 `[Unreleased]` 完成。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
+- **2.0**（核心升级）：分析结果持久化与增量分析已在 `[Unreleased]` 完成；本地目录数据源已在 N5① 完成；剩余为 HTML 报告导出与多项目工作区。多语言支持、规模提升、阅读路线与命令面板、架构视图已在 `[Unreleased]` 完成。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
 - **2.1**：多平台支持（macOS / Linux 打包 + CI 矩阵）。
 - **2.2**：可选本地 AI（Ollama 本地模型，默认关闭）。
 

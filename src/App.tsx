@@ -44,10 +44,9 @@ import { formatSize } from './utils/format';
 import { annotateDirectories } from './analysis/directories';
 import { generateContextPack, type ContextPack } from './analysis/contextPack';
 import { findSymbol, gotoDefinition, indexStats } from './analysis/scopeGraph';
-import type { ZipSource } from './sources/zip';
 import { DEFAULT_CONFIG, type AppConfig, type Language, type ThemeId } from './types/config';
 import { loadConfig, loadToken, saveConfig } from './utils/configStore';
-import { isTauri, onFileDrop, openZipWindow, readFileBytes, windowParams } from './utils/tauri';
+import { isTauri, onFileDrop, openLocalDirWindow, openZipWindow, readFileBytes, selectLocalDir, windowParams } from './utils/tauri';
 
 export default function App() {
   const { t, i18n } = useTranslation(['common', 'viewer', 'analysis', 'errors']);
@@ -139,21 +138,27 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fs]);
 
-  // ---------- 多窗口：按 zippath 加载 ----------
-  const { zipPath: initialZipPath } = windowParams();
+  // ---------- 多窗口：按 zippath / localdir 加载 ----------
+  const { zipPath: initialZipPath, localDir: initialLocalDir } = windowParams();
   const bootstrappedRef = useRef(false);
   useEffect(() => {
-    if (bootstrappedRef.current || !initialZipPath) return;
+    if (bootstrappedRef.current) return;
+    if (!initialZipPath && !initialLocalDir) return;
     bootstrappedRef.current = true;
     void (async () => {
-      const bytes = await readFileBytes(initialZipPath);
-      const name = initialZipPath.split(/[\\/]/).pop() ?? 'project.zip';
+      // 本地目录窗口：直接按绝对路径加载
+      if (initialLocalDir) {
+        await repo.loadLocalDir(initialLocalDir);
+        return;
+      }
+      const bytes = initialZipPath ? await readFileBytes(initialZipPath) : null;
+      const name = initialZipPath?.split(/[\\/]/).pop() ?? 'project.zip';
       if (bytes) await repo.loadZipBytes(bytes, name);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialZipPath]);
+  }, [initialZipPath, initialLocalDir]);
 
-  // ---------- ZIP 拖入（Tauri 窗口级事件） ----------
+  // ---------- 拖入（Tauri 窗口级事件）：ZIP 与目录都开新窗口，原窗口状态不变 ----------
   useEffect(() => {
     if (!isTauri()) return undefined;
     let dispose: (() => void) | undefined;
@@ -165,16 +170,20 @@ export default function App() {
       onLeave: () => setDropping(false),
       onDrop: (paths) => {
         setDropping(false);
-        const zips = paths.filter((p) => p.toLowerCase().endsWith('.zip'));
-        if (zips.length === 0) {
+        if (paths.length === 0) {
           setDropInvalid(true);
           setTimeout(() => setDropInvalid(false), 2500);
           return;
         }
         void (async () => {
-          for (const p of zips) {
-            const name = p.split(/[\\/]/).pop() ?? 'project.zip';
-            await openZipWindow(p, `CodeAtlas — ${name}`);
+          // 每个拖入项开独立窗口（验收 8 的延伸：不吃掉当前窗口正在看的项目）
+          for (const p of paths) {
+            const name = p.split(/[\\/]/).pop() ?? 'project';
+            if (p.toLowerCase().endsWith('.zip')) {
+              await openZipWindow(p, `CodeAtlas — ${name}`);
+            } else {
+              await openLocalDirWindow(p, `CodeAtlas — ${name}`);
+            }
           }
         })();
       },
@@ -182,7 +191,16 @@ export default function App() {
       dispose = fn;
     });
     return () => dispose?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** N5①：原生目录选择 → 当前窗口直接加载（仅 Tauri 桌面端，TopBar 按钮已隐藏浏览器） */
+  const handleOpenLocalDir = useCallback(() => {
+    void (async () => {
+      const dir = await selectLocalDir();
+      if (dir) await repo.loadLocalDir(dir);
+    })();
+  }, [repo]);
 
   // ---------- 跳转：打开文件并定位行 ----------
   const openFileAt = useCallback(
@@ -327,12 +345,12 @@ export default function App() {
 
   const resolveZipAsset = useCallback(
     async (src: string) => {
-      if (!fs || fs.meta.source !== 'zip') return null;
+      if (!fs || (fs.meta.source !== 'zip' && fs.meta.source !== 'local')) return null;
       const readmeDir = repo.readme?.path.includes('/')
         ? repo.readme.path.slice(0, repo.readme.path.lastIndexOf('/') + 1)
         : '';
       try {
-        const blob = await (fs as ZipSource).readBlob(readmeDir + src.replace(/^\.\//, ''));
+        const blob = await fs.readBlob(readmeDir + src.replace(/^\.\//, ''));
         return URL.createObjectURL(blob);
       } catch {
         return null;
@@ -494,6 +512,7 @@ export default function App() {
         onSubmit={repo.submit}
         onPickResult={(fullName) => void repo.submit(fullName)}
         onOpenZip={(file) => void repo.loadZip(file)}
+        onOpenLocalDir={isTauri() ? handleOpenLocalDir : null}
         theme={config.theme}
         onThemeChange={(theme: ThemeId) => patchConfig({ theme })}
         language={config.language}
@@ -586,7 +605,7 @@ export default function App() {
                 content={active.content}
                 baseUrl={rawBase}
                 linkBase={linkBase}
-                resolveAsset={meta?.source === 'zip' ? resolveZipAsset : undefined}
+                resolveAsset={meta?.source === 'zip' || meta?.source === 'local' ? resolveZipAsset : undefined}
               />
             )}
 
