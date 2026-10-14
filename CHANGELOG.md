@@ -55,6 +55,7 @@
 - **依赖自动化**：新增 Dependabot（npm / cargo / GitHub Actions）；忽略破坏性升级
   —— `web-tree-sitter` 与 `tree-sitter-wasms` 必须成对升级、React major 需专项适配。
 - **安全扫描**：新增 CodeQL（javascript-typescript）静态扫描。
+- **版本号升 2.0.0**：`package.json` / `Cargo.toml` / `tauri.conf.json` / `App` 状态栏 / `Cargo.lock` 对齐 `2.0.0`（N6 收口，尚未正式打 tag 发布）。
 - **工程规范**：补 `.editorconfig`；提交身份改用 GitHub noreply 邮箱。
 
 ### 规划中

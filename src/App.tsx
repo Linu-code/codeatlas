@@ -768,7 +768,7 @@ export default function App() {
             )}
           </>
         ) : (
-          <span>CodeAtlas v1.0.0</span>
+          <span>CodeAtlas v2.0.0</span>
         )}
       </footer>
 
