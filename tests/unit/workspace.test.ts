@@ -83,7 +83,7 @@ describe('Workspace（多项目工作区）', () => {
     const ws = new Workspace();
     const a = ws.openGithub({ owner: 'a', repo: 'b', branch: null, subDir: null });
     ws.report(a, { name: 'a/b', sourceKind: 'github', loading: false });
-    const b = ws.openGithub({ owner: 'c', repo: 'd', branch: null, subDir: null });
+    ws.openGithub({ owner: 'c', repo: 'd', branch: null, subDir: null });
 
     ws.activate(a);
     expect(ws.getSnapshot().activeId).toBe(a);
