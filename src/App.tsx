@@ -27,6 +27,7 @@ import ProjectTabs from './components/ProjectTabs';
 import ProjectView from './components/ProjectView';
 import SettingsDialog from './components/SettingsDialog';
 import DragOverlay from './components/DragOverlay';
+import ErrorBanner from './components/ErrorBanner';
 import { useLauncher } from './hooks/useLauncher';
 import { useWorkspace } from './hooks/useWorkspace';
 import { workspace } from './workspace/workspace';
@@ -44,7 +45,7 @@ import {
 } from './utils/tauri';
 
 export default function App() {
-  const { t, i18n } = useTranslation(['common', 'errors']);
+  const { i18n } = useTranslation();
 
   // ---------- 配置（全局） ----------
   const [config, setConfig] = useState<AppConfig>(() => ({
@@ -178,25 +179,7 @@ export default function App() {
         onLanguageChange={changeLanguage}
       />
 
-      {launcher.error && (
-        <div
-          role="alert"
-          className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-2 text-xs"
-          style={{ background: 'var(--c-bg-2)', borderColor: 'var(--c-border)', color: 'var(--c-error)' }}
-        >
-          <span>
-            <strong className="me-2">{t('errors:title')}:</strong>
-            {t(`errors:${launcher.error.code}`)}
-          </span>
-          <button
-            onClick={launcher.clearError}
-            className="rounded px-2 py-1"
-            style={{ color: 'var(--c-text-2)' }}
-          >
-            {t('common:close')}
-          </button>
-        </div>
-      )}
+      {launcher.error && <ErrorBanner error={launcher.error} onClose={launcher.clearError} />}
 
       {projects.length >= 2 && (
         <ProjectTabs

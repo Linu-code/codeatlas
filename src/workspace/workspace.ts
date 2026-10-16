@@ -30,7 +30,8 @@ export type ProjectSource =
   | { kind: 'zipBytes'; bytes: Uint8Array; name: string }
   | { kind: 'local'; rootPath: string };
 
-export type OpenableSource = Exclude<ProjectSource, { kind: 'none' }>;
+/** 可打开的数据源（去掉"空项目"形态） */
+type OpenableSource = Exclude<ProjectSource, { kind: 'none' }>;
 
 export interface ProjectEntry {
   id: string;

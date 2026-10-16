@@ -70,7 +70,6 @@ export function useLauncher(token: string) {
     if (owner && repo) workspace.openGithub({ owner, repo, branch: null, subDir: null });
   }, []);
 
-  const clearSearch = useCallback(() => setSearchResults([]), []);
   const clearError = useCallback(() => setError(null), []);
 
   return {
@@ -80,8 +79,6 @@ export function useLauncher(token: string) {
     error,
     submit,
     pickResult,
-    runSearch,
-    clearSearch,
     clearError,
   };
 }

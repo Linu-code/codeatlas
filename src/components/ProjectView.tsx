@@ -26,6 +26,7 @@ import OutlinePanel from './OutlinePanel';
 import ArchitecturePanel from './ArchitecturePanel';
 import CommandPalette, { type PaletteItem } from './CommandPalette';
 import ContextPackDialog from './ContextPackDialog';
+import ErrorBanner from './ErrorBanner';
 import { useRepo } from '../hooks/useRepo';
 import { useCodeAnalysis } from '../hooks/useCodeAnalysis';
 import { useGlobalSearch } from '../hooks/useGlobalSearch';
@@ -444,21 +445,7 @@ export default function ProjectView({
         onOpenSettings={onOpenSettings}
       />
 
-      {repo.error && (
-        <div
-          role="alert"
-          className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-2 text-xs"
-          style={{ background: 'var(--c-bg-2)', borderColor: 'var(--c-border)', color: 'var(--c-error)' }}
-        >
-          <span>
-            <strong className="me-2">{t('errors:title')}:</strong>
-            {t(`errors:${repo.error.code}`)}
-          </span>
-          <button onClick={repo.clearError} className="rounded px-2 py-1" style={{ color: 'var(--c-text-2)' }}>
-            {t('common:close')}
-          </button>
-        </div>
-      )}
+      {repo.error && <ErrorBanner error={repo.error} onClose={repo.clearError} />}
 
       <div className="flex min-h-0 flex-1">
         {repo.tree.length > 0 && (

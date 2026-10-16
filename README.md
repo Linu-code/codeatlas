@@ -191,8 +191,9 @@ codeatlas/
 │   │   ├── zip.ts         #   本地 ZIP（JSZip，懒加载）
 │   │   ├── cache.ts       #   IndexedDB 缓存
 │   │   └── zipSecurity.ts #   ZIP 路径穿越防护
-│   ├── components/        # UI：命令中心 / 文件树 / 标签页 / 各分析面板
-│   ├── hooks/             # 状态中枢：useRepo / useCodeAnalysis / useGlobalSearch
+│   ├── components/        # UI：命令中心 / 文件树 / 标签页 / 各分析面板 / ProjectView / ProjectTabs
+│   ├── hooks/             # 单项目状态：useRepo / useCodeAnalysis / useGlobalSearch / useLauncher / useFocusTrap
+│   ├── workspace/         # 多项目工作区 store（项目列表 / 激活 / 打开 / 关闭）
 │   ├── utils/             # 通用工具：hash.ts（FNV-1a 内容指纹）等
 │   ├── workers/           # Web Worker：全局正则搜索（超时自终止）
 │   ├── i18n/              # 中 / 英 / 日（common / viewer / analysis / errors）
