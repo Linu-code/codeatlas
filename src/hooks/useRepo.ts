@@ -1,20 +1,20 @@
 /**
- * useRepo —— 项目状态中枢
+ * useRepo —— 单个项目的数据源状态中枢（N5③ 多项目工作区）
  *
  * 职责：
- *   · 顶栏输入解析 → 加载仓库 / 搜索仓库 / 打开 ZIP（File 或字节流）
+ *   · 按工作区给出的 source 加载数据源（GitHub / ZIP / 字节流 / 本地目录）
  *   · 文件树、README、标签页、当前文件内容
  *   · 缓存刷新（清 IndexedDB 后重拉）
  *   · 错误统一为 RepoError（组件层按 code 取 i18n 文案）
  *
- * 多窗口约定：每个 Tauri 窗口各持有一份本 hook 实例，状态天然隔离。
+ * 隔离约定：每个项目各持有一份本 hook 实例（由 ProjectView 调用），
+ * 因此多项目并行时浏览状态天然隔离；顶栏的搜索/历史等"启动器"逻辑
+ * 已上移到 useLauncher。多窗口（Tauri）沿用"每窗口一份实例"。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RepoFS, RepoError, RepoSearchResult, FileNode, isBinaryPath } from '../types/repo';
+import { RepoFS, RepoError, FileNode, isBinaryPath } from '../types/repo';
 import { createGithubRepo, createLocalDirRepo, createZipRepo, createZipRepoFromBytes } from '../sources/factory';
-import { searchRepositories } from '../sources/github';
-import { resolveTopBarInput } from '../utils/githubUrl';
 import { isPreviewable, prismLangOf } from '../theme/themes';
 
 export type TabKind = 'code' | 'markdown' | 'unsupported' | 'binary' | 'loading';
@@ -32,8 +32,6 @@ export interface UseRepoOptions {
   token?: string;
   jsdelivrFallback?: boolean;
 }
-
-const HISTORY_LIMIT = 10;
 
 /** 无扩展名的常见文本文件 */
 const BARE_TEXT_FILES = ['license', 'makefile', 'dockerfile', 'procfile', 'authors'];
@@ -58,12 +56,8 @@ export function useRepo(options: UseRepoOptions = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<RepoError | null>(null);
 
-  const [searchResults, setSearchResults] = useState<RepoSearchResult[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
-  const [history, setHistory] = useState<string[]>([]);
 
   const requestIdRef = useRef(0);
   /**
@@ -75,10 +69,6 @@ export function useRepo(options: UseRepoOptions = {}) {
     | { kind: 'local'; rootPath: string }
     | null
   >(null);
-
-  const pushHistory = useCallback((input: string) => {
-    setHistory((prev) => [input, ...prev.filter((h) => h !== input)].slice(0, HISTORY_LIMIT));
-  }, []);
 
   /** 打开文件到标签页（已打开则激活） */
   const openFile = useCallback(async (path: string, repo: RepoFS) => {
@@ -137,7 +127,7 @@ export function useRepo(options: UseRepoOptions = {}) {
   );
 
   /** 加载 GitHub 仓库 */
-  const loadRepo = useCallback(
+  const loadGithub = useCallback(
     async (
       parsed: { owner: string; repo: string; branch: string | null; subDir: string | null },
       opts: { forceRefresh?: boolean } = {},
@@ -145,7 +135,6 @@ export function useRepo(options: UseRepoOptions = {}) {
       const rid = ++requestIdRef.current;
       setLoading(true);
       setError(null);
-      setSearchResults([]);
       lastTargetRef.current = { kind: 'github', ...parsed };
       try {
         const source = createGithubRepo(parsed, { token, jsdelivrFallback, forceRefresh: opts.forceRefresh });
@@ -169,7 +158,6 @@ export function useRepo(options: UseRepoOptions = {}) {
       const rid = ++requestIdRef.current;
       setLoading(true);
       setError(null);
-      setSearchResults([]);
       lastTargetRef.current = null;
       try {
         await mountSource(await createZipRepo(file), rid);
@@ -189,7 +177,6 @@ export function useRepo(options: UseRepoOptions = {}) {
       const rid = ++requestIdRef.current;
       setLoading(true);
       setError(null);
-      setSearchResults([]);
       lastTargetRef.current = null;
       try {
         await mountSource(await createZipRepoFromBytes(bytes, fileName), rid);
@@ -209,7 +196,6 @@ export function useRepo(options: UseRepoOptions = {}) {
       const rid = ++requestIdRef.current;
       setLoading(true);
       setError(null);
-      setSearchResults([]);
       lastTargetRef.current = { kind: 'local', rootPath };
       try {
         await mountSource(await createLocalDirRepo(rootPath), rid);
@@ -231,44 +217,8 @@ export function useRepo(options: UseRepoOptions = {}) {
       await loadLocalDir(target.rootPath);
       return;
     }
-    await loadRepo(target, { forceRefresh: true });
-  }, [loadLocalDir, loadRepo]);
-
-  /** 搜索仓库 */
-  const runSearch = useCallback(
-    async (query: string) => {
-      setSearchLoading(true);
-      setError(null);
-      try {
-        setSearchResults(await searchRepositories(query, token));
-      } catch (e) {
-        setError(e instanceof RepoError ? e : new RepoError('network', String(e)));
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
-    },
-    [token],
-  );
-
-  /** 顶栏提交入口 */
-  const submit = useCallback(
-    async (raw: string) => {
-      const resolved = resolveTopBarInput(raw);
-      if (!resolved) return; // 空输入无响应
-      pushHistory(raw.trim());
-      if (resolved.kind === 'search') {
-        await runSearch(resolved.query);
-        return;
-      }
-      await loadRepo(
-        resolved.kind === 'url'
-          ? resolved.parsed
-          : { owner: resolved.owner, repo: resolved.repo, branch: null, subDir: null },
-      );
-    },
-    [loadRepo, pushHistory, runSearch],
-  );
+    await loadGithub(target, { forceRefresh: true });
+  }, [loadGithub, loadLocalDir]);
 
   const closeTab = useCallback((path: string) => {
     setTabs((prev) => {
@@ -295,13 +245,10 @@ export function useRepo(options: UseRepoOptions = {}) {
     readme,
     loading,
     error,
-    searchResults,
-    searchLoading,
     tabs,
     activeTab,
     activeTabData: tabs.find((t) => t.path === activeTab) ?? null,
-    history,
-    submit,
+    loadGithub,
     loadZip,
     loadZipBytes,
     loadLocalDir,
@@ -310,6 +257,5 @@ export function useRepo(options: UseRepoOptions = {}) {
     closeTab,
     closeAllTabs,
     clearError: () => setError(null),
-    clearSearch: () => setSearchResults([]),
   };
 }

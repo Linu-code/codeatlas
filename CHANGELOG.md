@@ -43,6 +43,12 @@
   - **内容**：概览卡片（健康评分 / 文件数 / SLOC / 函数数 / 平均复杂度）、语言分布、热点文件与最复杂函数 Top 20、建议阅读路线、循环依赖、分层（按目录用途）、调用关系图 / 模块依赖图 / 类图（SVG 内联）。
   - **入口**：命令面板 `Ctrl/Cmd+K` →「导出 HTML 报告」（仓库已加载时出现），浏览器与 Tauri 均通过 Blob 下载。
   - 单测 `tests/unit/report.test.ts`（8 例：聚合正确性 + 离线 HTML 输出 + XSS 转义）；E2E `tests/e2e/report-export.spec.ts` 覆盖命令入口。
+- **多项目工作区（N5③ 完成）**：一个窗口内可同时打开多个项目，顶部出现**项目标签条**（点击切换 / × 关闭），彻底告别"每个项目一个系统窗口"。
+  - **架构**：新增 `src/workspace/workspace.ts`（纯逻辑 store：项目列表 / 激活 / 打开 / 关闭，零依赖）+ `src/hooks/useWorkspace.ts`（`useSyncExternalStore` 订阅）；每个项目由 `src/components/ProjectView.tsx` 承载，**各自持有一套 `useRepo` / `useCodeAnalysis` / `useGlobalSearch`**，因此浏览标签、分析结果、搜索结果在项目之间天然隔离，切换时完整保留。
+  - **职责拆分**：`App.tsx` 收敛为全局外壳（配置 / 主题 / 顶栏命令中心 / 项目标签 / 设置对话框 / 拖拽）；顶栏的搜索与历史从 `useRepo` 上移为 `src/hooks/useLauncher.ts`，`useRepo` 只负责单项目的数据源加载与浏览。
+  - **打开语义**：首个（空）项目就地加载，视觉与旧版单项目完全一致；已有项目时再打开则**追加新标签并激活**；加载中的项目不会被后续打开抢占。
+  - 单测 `tests/unit/workspace.test.ts`（8 例：就地加载 / 追加 / 加载中不抢占 / 报告去重 / 激活 / 关闭接管 / 订阅）；E2E `tests/e2e/workspace.spec.ts`（两个 ZIP → 标签切换 → 关闭）。
+  - 既有行为保持不变：拖入 ZIP / 目录仍各开独立窗口（验收 8）；单项目时不渲染标签条。
 - **可访问性（N6 完成）**：键盘导航 / ARIA / 对比度三项系统性补齐。
   - **对话框焦点陷阱**：新增 `useFocusTrap` hook，套用到设置 / 上下文包 / 命令面板三处 —— 打开时焦点移入并落在首个可聚焦元素，`Tab`/`Shift+Tab` 在对话框内循环不逃逸，`Esc` 关闭，关闭后焦点**归还**到打开前的元素；
   - **ARIA 语义**：命令面板补 `aria-modal` 与 `listbox`/`option`/`aria-activedescendant`；顶栏搜索框标注 `role="combobox"` + `aria-expanded`/`aria-controls`/`aria-activedescendant`；文件树改为规范 `tree`/`treeitem` + `aria-level`/`aria-selected`/`aria-expanded`；加载指示器加 `role="status"` 实时播报；

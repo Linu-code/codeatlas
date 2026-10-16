@@ -41,7 +41,7 @@
 
 | 版本 | 主题 | 内容 | 状态 |
 |---|---|---|---|
-| **2.0** | 核心升级（本地化 + 深度 + 体验） | N1–N6（**N1 / N2 / N3 / N4 / N5① / N5② / N6 已完成**；仅多项目工作区待做） | 开发中 |
+| **2.0** | 核心升级（本地化 + 深度 + 体验） | N1–N6 + N5①②③（**全部已完成**；2.0 收口，待打 tag 发布） | 开发完成 |
 | **2.1** | 多平台支持 | macOS / Linux 打包 + CI 矩阵 | 规划中 |
 | **2.2** | 可选本地 AI | 内置 Ollama 本地模型辅助（默认关闭） | 规划中 |
 
@@ -112,10 +112,10 @@
 - **内容**
   - **本地目录 / 本地 Git 仓库数据源（N5① ✅ 已完成）**：桌面端点「打开本地目录」用系统原生对话框选文件夹，或把文件夹**拖入窗口**，直接在 App 内浏览与分析本地项目（含 git 工作区），彻底摆脱"必须先打包 zip"。实现见 📄 `src/sources/local.ts`（`LocalDirSource` 实现 `RepoFS` 契约）+ `src-tauri/src/lib.rs`（新增 `read_dir` / `read_text_file` / `select_dir` 三命令，`select_dir` 走 `rfd 0.15` 原生对话框）；防爆策略（`MAX_SCAN_ENTRIES=200_000` 静默截断、`MAX_DEPTH=24` 防符号链接环、跳过 12 个构建/依赖目录）、缓存命名空间 `local:<绝对路径去尾>` 防同名串缓存、浏览器降级（按钮自动隐藏）、路径穿越拦截（`zip-insecure`）。
   - **报告导出（N5② ✅ 已完成）**：单文件 HTML（架构概览 + 度量 + 图 + 阅读路线），可直接分享。
-  - **多项目工作区**：同时打开多个仓库，标签切换（窗口内 tab 化，而非每项目一个系统窗口）。
+  - **多项目工作区（N5③ ✅ 已完成）**：窗口内多仓库标签化（顶部项目标签条，点击切换 / × 关闭）。每个项目由 `ProjectView` 独占一套 `useRepo` / `useCodeAnalysis` / `useGlobalSearch`，浏览标签、分析结果、搜索结果在项目间天然隔离；首个（空）项目就地加载以保持旧版单项目体验，其后打开的项目追加为标签。实现见 📄 `src/workspace/workspace.ts`（纯 store）+ `src/hooks/useWorkspace.ts` + `src/components/ProjectView.tsx` / `ProjectTabs.tsx`；`App.tsx` 收敛为全局外壳，顶栏搜索/历史上移 `src/hooks/useLauncher.ts`。拖入 ZIP/目录仍各开独立窗口（验收 8 不变）。
 - **动机**：从"单仓库查看器"变成"工作台"。
 - **依赖**：无（数据源部分已与 N1 并行完成）。
-- **验收（实际结果）**：`tests/unit/localDir.test.ts`（4 例）；E2E `tests/e2e/local-dir-degrade.spec.ts`（2 例，覆盖默认语言 + 中/英/日切换下按钮隐藏）；`npm run build:exe` 已验证 `rfd 0.15.4` 与 `codeatlas` Rust 编译通过并产出 exe + NSIS 安装包；桌面端真实目录加载为 Tauri 窗口级能力，建议在 exe 中按 README 人工过一遍。N5② HTML 报告导出：`tests/unit/report.test.ts`（8 例）+ E2E `tests/e2e/report-export.spec.ts`（1 例，命令入口可见），`npm run build:exe` 已验证产物含报告模块。
+- **验收（实际结果）**：`tests/unit/localDir.test.ts`（4 例）；E2E `tests/e2e/local-dir-degrade.spec.ts`（2 例，覆盖默认语言 + 中/英/日切换下按钮隐藏）；`npm run build:exe` 已验证 `rfd 0.15.4` 与 `codeatlas` Rust 编译通过并产出 exe + NSIS 安装包；桌面端真实目录加载为 Tauri 窗口级能力，建议在 exe 中按 README 人工过一遍。N5② HTML 报告导出：`tests/unit/report.test.ts`（8 例）+ E2E `tests/e2e/report-export.spec.ts`（1 例，命令入口可见）。N5③ 多项目工作区：单测 `tests/unit/workspace.test.ts`（8 例）+ E2E `tests/e2e/workspace.spec.ts`（1 例：开两个项目 → 切换 → 关闭）。
 
 ### N6 · 质量与工程债（2.0 收口）
 - **内容**
@@ -186,7 +186,7 @@
 | **—** | **2.1 多平台支持** | 2.0 完成后启动 |
 | **—** | **2.2 本地 Ollama AI** | 2.1 完成后启动 |
 
-**剩余待做（2.0）**：仅剩 **N5 多项目工作区**（窗口内多仓库 tab）。N5① 本地目录数据源、N5② 报告导出、N6（版本号规范、ABI 升级、在线 E2E 补全、可访问性）均已完成并合入本地分支。
+**剩余待做（2.0）**：无。N1–N6 与 N5①（本地目录数据源）/ N5②（报告导出）/ N5③（多项目工作区）全部完成并合入本地分支；多平台打包见 2.1。
 
 ---
 
