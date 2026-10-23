@@ -6,6 +6,7 @@
 
 ### 新增
 
+- **工作区持久化**：重启 / 刷新后自动恢复上次打开的 **GitHub 与本地目录**项目（ZIP 是内存快照，无法还原，不持久化）；拖入 ZIP/目录打开的多窗口既不恢复也不写入，避免多窗口互相覆盖。存储于 `localStorage`（键 `codeatlas.workspace.v1`），读取前做结构校验，损坏时静默忽略。单测 +5、E2E +1（刷新后自动恢复）。
 - **TypeScript 类型声明提取**：新增 `interface` / `type` 别名 / `enum` 三类符号（此前只认 `class`），`abstract class` 也归入 `class`。符号种类扩展后，大纲图标（I / T / E）、上下文包 `(interface|type|enum)` 标签同步；C/Go/Rust 的 struct/interface 仍按 `class` 收录，不影响既有类图与度量语义。单测 +3（`tests/unit/langs.test.ts`）。
 
 ### 变更 / 修复

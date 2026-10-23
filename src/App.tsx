@@ -31,6 +31,7 @@ import ErrorBanner from './components/ErrorBanner';
 import { useLauncher } from './hooks/useLauncher';
 import { useWorkspace } from './hooks/useWorkspace';
 import { workspace } from './workspace/workspace';
+import { loadWorkspace, saveWorkspace, serializeWorkspace } from './workspace/persistence';
 import { applyTheme, readSavedTheme, watchSystemTheme } from './theme/themes';
 import { DEFAULT_CONFIG, type AppConfig, type Language, type ThemeId } from './types/config';
 import { loadConfig, loadToken, saveConfig } from './utils/configStore';
@@ -127,6 +128,36 @@ export default function App() {
       if (bytes) workspace.openZipBytes(bytes, name);
     })();
   }, [initialZipPath, initialLocalDir]);
+
+  // ---------- 工作区持久化：普通启动时恢复上次打开的项目 ----------
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    // 拖入 ZIP/目录打开的多窗口：不恢复（它是独立会话）
+    if (initialZipPath || initialLocalDir) return;
+    const saved = loadWorkspace();
+    if (!saved || saved.projects.length === 0) return;
+
+    const ids: string[] = [];
+    for (const p of saved.projects) {
+      if (p.kind === 'github' && p.parsed) ids.push(workspace.openGithub(p.parsed));
+      else if (p.kind === 'local' && p.rootPath) ids.push(workspace.openLocalDir(p.rootPath));
+    }
+    if (ids.length > 0) {
+      const idx = Math.min(Math.max(saved.activeIndex, 0), ids.length - 1);
+      workspace.activate(ids[idx]);
+    }
+  }, [initialZipPath, initialLocalDir]);
+
+  // ---------- 工作区持久化：变化后防抖写入（首帧的 [] 会被随后的重渲染取消） ----------
+  useEffect(() => {
+    if (initialZipPath || initialLocalDir) return;
+    const timer = setTimeout(() => {
+      saveWorkspace(serializeWorkspace(projects, activeId));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [projects, activeId, initialZipPath, initialLocalDir]);
 
   // ---------- 拖入（Tauri 窗口级事件）：ZIP 与目录都开新窗口，原窗口状态不变 ----------
   useEffect(() => {
