@@ -31,7 +31,11 @@ export const javascriptHandler: LangHandler = {
 
   defKind(node): SymbolKind | null {
     const t = node.type;
-    if (t === 'class_declaration') return 'class';
+    if (t === 'class_declaration' || t === 'abstract_class_declaration') return 'class';
+    // TypeScript 类型声明：它们是"数据形状"，对理解系统比函数体更重要
+    if (t === 'interface_declaration') return 'interface';
+    if (t === 'type_alias_declaration') return 'type';
+    if (t === 'enum_declaration') return 'enum';
     if (METHOD_NODES.has(t)) return 'method';
     if (DEF_NODES.has(t)) return 'function';
     if (t === 'variable_declarator') {

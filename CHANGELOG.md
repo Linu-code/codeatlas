@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **TypeScript 类型声明提取**：新增 `interface` / `type` 别名 / `enum` 三类符号（此前只认 `class`），`abstract class` 也归入 `class`。符号种类扩展后，大纲图标（I / T / E）、上下文包 `(interface|type|enum)` 标签同步；C/Go/Rust 的 struct/interface 仍按 `class` 收录，不影响既有类图与度量语义。单测 +3（`tests/unit/langs.test.ts`）。
+
 ### 变更 / 修复
 
 - **上下文包可用性打磨**：

@@ -32,7 +32,19 @@ import type { LangId } from '../parser';
 // 分析结果类型（对外 API，symbols.ts 会原样 re-export 以保持既有 import 不变）
 // ---------------------------------------------------------------------------
 
-export type SymbolKind = 'function' | 'class' | 'method' | 'variable';
+/**
+ * 符号种类。
+ * `interface` / `type` / `enum` 主要来自 TypeScript（C/Go/Rust 的 struct/interface
+ * 仍按 `class` 收录，避免改变既有类图与度量语义）。
+ */
+export type SymbolKind =
+  | 'function'
+  | 'class'
+  | 'method'
+  | 'variable'
+  | 'interface'
+  | 'type'
+  | 'enum';
 
 export interface SymbolDef {
   name: string;

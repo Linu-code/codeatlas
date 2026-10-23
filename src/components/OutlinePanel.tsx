@@ -30,6 +30,9 @@ const KIND_ICON: Record<string, string> = {
   function: 'ƒ',
   method: 'm',
   variable: 'v',
+  interface: 'I',
+  type: 'T',
+  enum: 'E',
 };
 
 function Row({

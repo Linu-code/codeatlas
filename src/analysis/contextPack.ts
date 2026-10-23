@@ -382,7 +382,7 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
     if (count <= 0) return '## 核心符号签名\n\n（预算不足，未包含符号列表）';
     const lines = ['## 核心符号签名（按重要性排序）', ''];
     for (const s of ranked.slice(0, count)) {
-      const kindLabel = s.kind === 'class' ? 'class' : s.kind === 'method' ? 'method' : 'function';
+      const kindLabel = KIND_LABEL[s.kind];
       lines.push(`- \`${s.file}:${s.line}\` **${s.name}** (${kindLabel}) — \`${oneLine(s.signature)}\``);
     }
     return lines.join('\n');
@@ -585,6 +585,17 @@ function countLanguages(files: FileAnalysis[]): string {
     .map(([k, v]) => `${k} ${v}`)
     .join(', ');
 }
+
+/** 符号种类 → 展示标签（新增 TS 类型声明后不再用三元表达式） */
+const KIND_LABEL: Record<SymbolDef['kind'], string> = {
+  function: 'function',
+  method: 'method',
+  class: 'class',
+  interface: 'interface',
+  type: 'type',
+  enum: 'enum',
+  variable: 'variable',
+};
 
 function oneLine(text: string): string {
   return text.replace(/\s+/g, ' ').replace(/`/g, "'").trim();

@@ -13,7 +13,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { configureParserEnv, grammarFileName, langOfPath, parseCode } from '../../src/analysis/parser';
-import { extractFile, type FileAnalysis } from '../../src/analysis/symbols';
+import { extractFile, type FileAnalysis, type SymbolKind } from '../../src/analysis/symbols';
 import { computeMetrics } from '../../src/analysis/metrics';
 
 const require = createRequire(import.meta.url);
@@ -40,7 +40,7 @@ async function analyze(code: string, lang: Parameters<typeof parseCode>[1], file
 }
 
 /** 按「名字 + 种类」精确取定义（同名可能既是类又是构造器） */
-function def(res: FileAnalysis, name: string, kind: 'function' | 'class' | 'method') {
+function def(res: FileAnalysis, name: string, kind: SymbolKind) {
   return res.definitions.find((d) => d.name === name && d.kind === kind);
 }
 
@@ -657,5 +657,48 @@ describe('多语言度量（N1 扩容）', () => {
     const m = computeMetrics(tree!.rootNode, 'a.php', 'php', code);
     const fn = m.functions.find((x) => x.name === 'f')!;
     expect(fn.cyclomatic).toBe(3); // 1 + foreach + if
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TypeScript 类型声明（interface / type alias / enum）
+// ---------------------------------------------------------------------------
+
+describe('TypeScript 类型声明', () => {
+  const CODE = [
+    'export interface User { id: string; name: string }',
+    'interface Internal { x: number }',
+    'export type ID = string | number;',
+    'type Pair = [string, number];',
+    'export enum Color { Red, Green }',
+    'enum Hidden { A }',
+    'export abstract class Base {}',
+  ].join('\n');
+
+  it('interface / type alias / enum 都被识别为独立种类', async () => {
+    const res = await analyze(CODE, 'typescript', 'types.ts');
+    expect(def(res, 'User', 'interface')?.line).toBe(1);
+    expect(def(res, 'Internal', 'interface')?.line).toBe(2);
+    expect(def(res, 'ID', 'type')?.line).toBe(3);
+    expect(def(res, 'Pair', 'type')?.line).toBe(4);
+    expect(def(res, 'Color', 'enum')?.line).toBe(5);
+    expect(def(res, 'Hidden', 'enum')?.line).toBe(6);
+  });
+
+  it('export 前缀决定 exported（abstract class 也识别）', async () => {
+    const res = await analyze(CODE, 'typescript', 'types.ts');
+    expect(def(res, 'User', 'interface')?.exported).toBe(true);
+    expect(def(res, 'Internal', 'interface')?.exported).toBe(false);
+    expect(def(res, 'ID', 'type')?.exported).toBe(true);
+    expect(def(res, 'Pair', 'type')?.exported).toBe(false);
+    expect(def(res, 'Color', 'enum')?.exported).toBe(true);
+    expect(def(res, 'Hidden', 'enum')?.exported).toBe(false);
+    expect(def(res, 'Base', 'class')?.exported).toBe(true);
+  });
+
+  it('签名截取到类型体之前（不含成员）', async () => {
+    const res = await analyze(CODE, 'typescript', 'types.ts');
+    expect(def(res, 'User', 'interface')?.signature).toContain('interface User');
+    expect(def(res, 'User', 'interface')?.signature).not.toContain('id: string');
   });
 });
