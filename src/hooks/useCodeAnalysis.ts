@@ -26,6 +26,7 @@ import { toClassMermaid, toModuleMermaid, toMermaid } from '../analysis/mermaid'
 import { buildScopeIndex, type ScopeIndex } from '../analysis/scopeGraph';
 import { computeMetrics, healthScore, type FileMetrics } from '../analysis/metrics';
 import { MAX_ANALYSIS_FILES, MAX_GRAPH_NODES, MAX_SOURCE_BYTES } from '../analysis/limits';
+import { selectAnalysisPaths } from '../analysis/targets';
 import { buildReadingPath, type ReadingPath } from '../analysis/readingPath';
 import { buildModuleGraph, groupByLayer, type LayerGroup, type ModuleGraph } from '../analysis/moduleGraph';
 import { findCycles, type CycleReport } from '../analysis/cycles';
@@ -144,7 +145,11 @@ export function useCodeAnalysis() {
 
       const runId = ++runIdRef.current;
       const all = flattenFiles(tree);
-      const targets = all.filter((p) => langOfPath(p) !== null).slice(0, MAX_ANALYSIS_FILES);
+      const candidates = all.filter((p) => langOfPath(p) !== null);
+      // 超上限时按"核心目录 / 入口 / 非测试 / 非第三方"优先选取（小项目原样返回）
+      const targets = selectAnalysisPaths(candidates, MAX_ANALYSIS_FILES).paths;
+      /** 进度节流粒度：大项目下逐文件 setState 会造成数千次渲染 */
+      const progressStep = Math.max(10, Math.ceil(targets.length / 50));
 
       if (targets.length === 0) {
         signatureRef.current = signature;
@@ -210,7 +215,10 @@ export function useCodeAnalysis() {
             failedCount++;
           } finally {
             parsedCount++;
-            if (runId === runIdRef.current) {
+            if (
+              runId === runIdRef.current &&
+              (parsedCount % progressStep === 0 || parsedCount === targets.length)
+            ) {
               setState((prev) => ({
                 ...prev,
                 progress: { parsed: parsedCount, total: targets.length },

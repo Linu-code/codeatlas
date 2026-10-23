@@ -98,7 +98,7 @@ export default function ContextPackDialog({
             role="group"
             aria-label={t('common:maxTokens')}
           >
-            {[2000, 8000, 32000].map((b) => (
+            {[2000, 8000, 32000, 64000].map((b) => (
               <button
                 key={b}
                 onClick={() => {

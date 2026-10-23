@@ -9,8 +9,12 @@
  * 若后续加入增量分析（N4），这些常量会成为缓存分片粒度。
  */
 
-/** 单次分析参与解析的文件数上限 */
-export const MAX_ANALYSIS_FILES = 2000;
+/**
+ * 单次分析参与解析的文件数上限。
+ * 2000 → 5000（面向数万行 / 数千文件的系统级项目）；超出时不再按字典序硬截断，
+ * 而是由 `targets.ts` 按"核心目录 / 入口 / 非测试 / 非第三方"优先级选取。
+ */
+export const MAX_ANALYSIS_FILES = 5000;
 
 /** 参与解析的单个源文件体积上限（超出则跳过该文件，不影响其它文件） */
 export const MAX_SOURCE_BYTES = 1024 * 1024;
@@ -21,8 +25,11 @@ export const MAX_SOURCE_BYTES = 1024 * 1024;
  */
 export const MAX_GRAPH_NODES = 120;
 
-/** 全局搜索参与的文件数上限（与解析分开计数：搜索不建 AST，开销更低但更吃内存） */
-export const MAX_SEARCH_FILES = 2000;
+/**
+ * 全局搜索参与的文件数上限（与解析分开计数：搜索不建 AST，开销更低但更吃内存）。
+ * 与分析上限同步提到 5000。
+ */
+export const MAX_SEARCH_FILES = 5000;
 
 /** 全局搜索单文件体积上限：正则扫描会把文本整体驻留内存，故低于分析路径 */
 export const MAX_SEARCH_BYTES = 512 * 1024;

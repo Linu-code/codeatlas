@@ -265,6 +265,7 @@ export default function ProjectView({
           index: bundle.index,
           metrics: bundle.metrics,
           treePaths,
+          totalFiles: treePaths.length,
           dirPurposes,
           purposeLabels: dirPurposeLabels,
           maxTokens: usedBudget,

@@ -148,7 +148,7 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 | 代码高亮 | Prism（语言包按需动态加载） | 首屏只带 4 个核心语法，其余用时再拉 |
 | 图表 | Mermaid（动态加载） | 调用图渲染 + SVG/PNG 导出 |
 | 本地缓存 | IndexedDB（手写薄封装） | 二次打开秒开；断网回退旧缓存；**分析结果增量复用（N4）** |
-| 测试 | Vitest（270 个单测）+ Playwright（31 个 E2E 用例，在线场景用本地 mock 驱动，无需真实联网） | 分析层纯函数全覆盖 |
+| 测试 | Vitest（280 个单测）+ Playwright（31 个 E2E 用例，在线场景用本地 mock 驱动，无需真实联网） | 分析层纯函数全覆盖 |
 
 > **版本锁定说明**：`web-tree-sitter` 必须与语法包 ABI 匹配。项目锁定 `web-tree-sitter@0.25.10` + `tree-sitter-wasms@0.1.13`（0.1.13 由 tree-sitter-cli 0.20.8 构建，ABI 13；0.25.x 是兼容下限）。**0.26+** 运行时改用新版 dylink 段，加载旧 ABI 语法包会报 `getDylinkMetadata` 失败（issue tree-sitter#5171），故切勿升到 0.26+（已通过 Dependabot 忽略）。
 >
@@ -224,7 +224,7 @@ Atlas Blue 色板：主色 `#4A6CF7`、强调色 `#7C9EFF`、深色底 `#1B1D23`
 ```bash
 npm install          # 安装依赖（会自动把 tree-sitter wasm 复制到 public/grammars）
 npm run dev          # 浏览器开发模式
-npm test             # 单元测试（270 个）
+npm test             # 单元测试（280 个）
 npm run e2e          # E2E（Playwright，31 个用例，含截图生成；在线场景用本地 mock 驱动）
 npm run build        # 生产构建
 npm run build:exe    # 打包 exe（自动注入 MSVC 环境，产物复制到仓库根目录）
@@ -235,7 +235,7 @@ npm run check:tree-sitter   # tree-sitter 运行时与语法包兼容性自检
 
 - AST 解析支持 **JavaScript / TypeScript / TSX / Python / Go / Rust / Java / C / C++ / C# / PHP / Kotlin / Swift / Ruby**；其它语言可正常浏览与高亮，但不参与调用图/跳转/度量。语法包加载失败时会自动降级并提示，不影响其它功能。
 - 未纳入的语言（语法包自身有缺陷，已实测记录在 `scripts/check-tree-sitter.cjs`）：**Lua**（与其它语法包共存时解析失败）、**Bash**（`case` 语句触发语法包异常）、**Scala**（无法识别 `while` / `for`）；**Dart / Elm / QL**（ABI 15，升级到 web-tree-sitter 0.25 后具备加载条件，待重新实测）。
-- 单次分析上限：**2000 个文件、单文件 1 MB**（超出部分跳过，保证中型项目流畅）；调用图超过 120 个节点时按连接度截断。
+- 单次分析上限：**5000 个文件、单文件 1 MB**（超限时按「核心目录 / 入口文件 / 非测试 / 非第三方」优先级选取，不再按字典序硬截断，避免整段模块漏掉）；调用图超过 120 个节点时按连接度截断。
 - 调用图超过 60 个节点时按连接度截断为骨架图，界面会明确提示。
 - GitHub 匿名 API 限流 60 次/小时；文件内容走 `raw.githubusercontent.com`（不计入 API 配额），文件树失败时若无法回退缓存会提示填入 Token。
 - 拖入支持 `.zip` 文件与文件夹（文件夹需桌面端，浏览器模式仅支持 `.zip`）。

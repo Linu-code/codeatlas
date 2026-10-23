@@ -27,6 +27,8 @@ export interface ContextPackInput {
   metrics?: FileMetrics[];
   /** 文件树（用于生成带说明的目录树） */
   treePaths: string[];
+  /** 仓库文件总数（可选）：用于在概览里说明"本次分析覆盖率"，超大项目必备 */
+  totalFiles?: number;
   /** 目录用途标注（来自 analysis/directories.ts） */
   dirPurposes?: Map<string, { key: string; confidence: 'rule' | 'heuristic' }>;
   /** 目录用途的中文/本地化文案（由 UI 传入 i18n 结果，保证离线且不硬编码语言） */
@@ -218,7 +220,7 @@ function renderFileTree(
   }
   const moduleLines = [...byModule.entries()]
     .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-    .slice(0, 30)
+    .slice(0, 60)
     .map(([m, paths]) => {
       const key = [...paths]
         .sort((a, b) => (fileScores.get(b) ?? 0) - (fileScores.get(a) ?? 0))
@@ -315,6 +317,9 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
     '## 项目概览',
     `- 仓库：${input.repoName}${input.branch ? ` @${input.branch}` : ''}`,
     `- 分析文件：${input.files.length} 个`,
+    input.totalFiles && input.totalFiles > input.files.length
+      ? `- 仓库文件：${input.totalFiles} 个（本次分析 ${input.files.length} 个，按核心目录 / 入口优先级选取）`
+      : '',
     `- 语言分布：${langs}`,
     `- 符号总数：${ranked.length}（函数/类定义）`,
     totalSloc !== undefined ? `- 代码行数：${totalSloc}` : '',
@@ -348,7 +353,7 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
 
   const header = headerParts.filter(Boolean).join('\n');
 
-  const treeBlock = renderFileTree(input, fileScores, 40);
+  const treeBlock = renderFileTree(input, fileScores, 80);
 
   const readingBlock = renderReadingPath(input);
 
