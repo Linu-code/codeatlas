@@ -2,7 +2,11 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。
 
-## [Unreleased]
+## [2.0.0] - 2026-10-23
+
+> **2.0 亮点**：12 个语言族 / 5000 文件规模、阅读路线与命令面板、架构视图（模块依赖 · 循环依赖 · 类图 · 分层）、
+> 增量分析缓存、本地目录数据源、HTML 报告导出、多项目工作区、在线 E2E 与可访问性收口；
+> AI 上下文包新增模块地图 / 构建与技术栈 / 覆盖率，适配数万行系统级项目。
 
 ### 新增
 
@@ -86,7 +90,7 @@
 
 ### 规划中
 
-- **2.0**（核心升级，代码已完成，待打 tag 发布）：多语言（12 个语言族）与规模提升、阅读路线 / 命令面板 / 架构视图、分析结果持久化与增量分析、本地目录数据源（N5①）、HTML 报告导出（N5②）、多项目工作区（N5③）、质量与工程债收口（N6：依赖 ABI 升级 / 在线 E2E / 可访问性）均已在 `[Unreleased]` 完成。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
+- **2.0**（核心升级，已发布 `v2.0.0`）：多语言（12 个语言族）与规模提升、阅读路线 / 命令面板 / 架构视图、分析结果持久化与增量分析、本地目录数据源（N5①）、HTML 报告导出（N5②）、多项目工作区（N5③）、质量与工程债收口（N6：依赖 ABI 升级 / 在线 E2E / 可访问性）均已随 2.0.0 发布。详见 [docs/PLAN-2.0.md](docs/PLAN-2.0.md)。
 - **2.1**：多平台支持（macOS / Linux 打包 + CI 矩阵）。
 - **2.2**：可选本地 AI（Ollama 本地模型，默认关闭）。
 
@@ -132,5 +136,5 @@
 - **版本号统一为 `1.0.0`**：此前 `package.json` 为 `0.1.0` 而 git tag 为 `1.0`，现全部对齐（`package.json` / `Cargo.toml` / `tauri.conf.json` / `Cargo.lock` / 状态栏 / CI 模板）。
 - 打包与发布统一使用 `npm run build:exe`（自动注入 MSVC 环境并复制产物到仓库根目录）。
 
-[Unreleased]: https://github.com/Linu-code/codeatlas/compare/v1.0.0...HEAD
+[2.0.0]: https://github.com/Linu-code/codeatlas/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/Linu-code/codeatlas/releases/tag/v1.0.0
