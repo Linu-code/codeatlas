@@ -72,6 +72,8 @@ export default function ProjectView({
   const [packOpen, setPackOpen] = useState(false);
   const [pack, setPack] = useState<ContextPack | null>(null);
   const [packGenerating, setPackGenerating] = useState(false);
+  /** 当前上下文包是按哪个 token 预算生成的（用于预算变更时判断是否失效） */
+  const lastPackBudgetRef = useRef<number | null>(null);
   /** 命令面板（N2）：Ctrl+K 全量入口，Ctrl+T 只搜符号 */
   const [palette, setPalette] = useState<{ open: boolean; mode: 'all' | 'symbol' }>({
     open: false,
@@ -132,12 +134,19 @@ export default function ProjectView({
   useEffect(() => {
     setPanel('none');
     setPack(null);
+    lastPackBudgetRef.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fs]);
 
-  // token 预算变化后上下文包需重新生成
+  /**
+   * 预算变化时让旧包失效；但预设按钮会"改预算 + 立即按新预算重生成"，
+   * 这两步存在时序竞争，因此用 ref 记录当前包是按哪个预算生成的，避免误清。
+   */
   useEffect(() => {
-    setPack(null);
+    if (lastPackBudgetRef.current !== null && lastPackBudgetRef.current !== config.maxTokens) {
+      setPack(null);
+      lastPackBudgetRef.current = null;
+    }
   }, [config.maxTokens]);
 
   // ---------- 跳转：打开文件并定位行 ----------
@@ -231,34 +240,49 @@ export default function ProjectView({
   );
 
   // ---------- AI 上下文包 ----------
-  const generatePack = useCallback(async () => {
-    if (!fs) return;
-    setPackGenerating(true);
-    try {
-      const bundle = await analysis.analyze(fs, repo.tree);
-      if (!bundle.index) return;
-      setPack(
-        generateContextPack({
+  const generatePack = useCallback(
+    async (budgetOverride?: number) => {
+      if (!fs) return;
+      setPackGenerating(true);
+      try {
+        const bundle = await analysis.analyze(fs, repo.tree);
+        if (!bundle.index) return;
+        const treePaths = flattenFiles(repo.tree);
+        const usedBudget = budgetOverride ?? config.maxTokens;
+        // package.json：把「怎么跑 / 用什么」带进上下文包（读失败不影响生成）
+        let manifestText: string | undefined;
+        if (treePaths.includes('package.json')) {
+          try {
+            manifestText = await fs.readFile('package.json');
+          } catch {
+            manifestText = undefined;
+          }
+        }
+        const result = generateContextPack({
           repoName: fs.meta.name,
           branch: fs.meta.branch,
           files: bundle.files,
           index: bundle.index,
           metrics: bundle.metrics,
-          treePaths: flattenFiles(repo.tree),
+          treePaths,
           dirPurposes,
           purposeLabels: dirPurposeLabels,
-          maxTokens: config.maxTokens,
+          maxTokens: usedBudget,
+          manifestText,
           readingPath: bundle.readingPath?.steps.map((s) => ({
             path: s.path,
             order: s.order,
             role: s.role,
           })),
-        }),
-      );
-    } finally {
-      setPackGenerating(false);
-    }
-  }, [analysis, config.maxTokens, dirPurposeLabels, dirPurposes, fs, repo.tree]);
+        });
+        lastPackBudgetRef.current = usedBudget;
+        setPack(result);
+      } finally {
+        setPackGenerating(false);
+      }
+    },
+    [analysis, config.maxTokens, dirPurposeLabels, dirPurposes, fs, repo.tree],
+  );
 
   // ---------- 资源前缀 ----------
   const rawBase = useMemo(() => {
@@ -664,7 +688,8 @@ export default function ProjectView({
         pack={pack}
         generating={packGenerating}
         budget={config.maxTokens}
-        onGenerate={() => void generatePack()}
+        onGenerate={(budget) => void generatePack(budget)}
+        onBudgetChange={(maxTokens) => onConfigChange({ maxTokens })}
         onClose={() => setPackOpen(false)}
       />
 

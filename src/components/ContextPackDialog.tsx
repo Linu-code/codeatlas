@@ -18,7 +18,10 @@ interface Props {
   pack: ContextPack | null;
   generating: boolean;
   budget: number;
-  onGenerate: () => void;
+  /** 生成；传 budget 时按该预算生成（预算预设按钮用） */
+  onGenerate: (budget?: number) => void;
+  /** 持久化预算（写入配置），可选 */
+  onBudgetChange?: (budget: number) => void;
   onClose: () => void;
 }
 
@@ -38,6 +41,7 @@ export default function ContextPackDialog({
   generating,
   budget,
   onGenerate,
+  onBudgetChange,
   onClose,
 }: Props) {
   const { t } = useTranslation(['analysis', 'common']);
@@ -89,7 +93,31 @@ export default function ContextPackDialog({
               )}
             </>
           )}
-          <div className="ms-auto flex items-center gap-2">
+          <div
+            className="ms-auto flex items-center gap-1"
+            role="group"
+            aria-label={t('common:maxTokens')}
+          >
+            {[2000, 8000, 32000].map((b) => (
+              <button
+                key={b}
+                onClick={() => {
+                  onBudgetChange?.(b);
+                  onGenerate(b);
+                }}
+                disabled={generating}
+                title={`${b} tokens`}
+                className="rounded border px-1.5 py-0.5 disabled:opacity-40"
+                style={{
+                  borderColor: budget === b ? 'var(--c-primary)' : 'var(--c-border)',
+                  color: budget === b ? 'var(--c-primary)' : 'var(--c-text-2)',
+                }}
+              >
+                {b / 1000}k
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setTab('md')}
               className="rounded border px-2 py-0.5"
@@ -128,7 +156,7 @@ export default function ContextPackDialog({
 
         <footer className="flex items-center gap-2">
           <button
-            onClick={onGenerate}
+            onClick={() => onGenerate()}
             disabled={generating}
             className="rounded px-3 py-1 text-white disabled:opacity-50"
             style={{ background: 'var(--c-primary)' }}

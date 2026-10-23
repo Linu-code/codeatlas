@@ -49,6 +49,13 @@
   - **打开语义**：首个（空）项目就地加载，视觉与旧版单项目完全一致；已有项目时再打开则**追加新标签并激活**；加载中的项目不会被后续打开抢占。
   - 单测 `tests/unit/workspace.test.ts`（8 例：就地加载 / 追加 / 加载中不抢占 / 报告去重 / 激活 / 关闭接管 / 订阅）；E2E `tests/e2e/workspace.spec.ts`（两个 ZIP → 标签切换 → 关闭）。
   - 既有行为保持不变：拖入 ZIP / 目录仍各开独立窗口（验收 8）；单项目时不渲染标签条。
+- **AI 上下文包增强（面向超大项目）**：大幅提升"帮助 AI 在有限上下文理解巨大项目"的可用性。
+  - **模块地图**：不再平铺 60 个文件，改为按顶层目录聚合（模块 → 文件数 → 关键文件），信息密度与项目规模无关；关键文件按 PageRank 排序。
+  - **构建与运行 + 技术栈**：读取仓库根 `package.json`，输出包名/入口/常用脚本/包管理器（pnpm/yarn/bun/npm）与运行时/开发依赖，让 AI 知道"怎么跑、用什么"。
+  - **入口文件**：自动识别 `main|index|app|server|cli…` 常见入口并写入概览与 JSON。
+  - **JSON 限长**：`files` 由全量 `treePaths`（超大项目可达上万 token）改为最多 400 条 + `filesTotal`，避免架空 token 预算。
+  - **预算预设**：上下文包对话框新增 2k / 8k / 32k 一键切换（持久化到配置并立即按新预算重生成），无需进设置页。
+  - 新增 4 个单测（模块地图 / manifest 解析 / 入口文件 / JSON 限长），四要素章节与既有验收断言保持不变。
 - **可访问性（N6 完成）**：键盘导航 / ARIA / 对比度三项系统性补齐。
   - **对话框焦点陷阱**：新增 `useFocusTrap` hook，套用到设置 / 上下文包 / 命令面板三处 —— 打开时焦点移入并落在首个可聚焦元素，`Tab`/`Shift+Tab` 在对话框内循环不逃逸，`Esc` 关闭，关闭后焦点**归还**到打开前的元素；
   - **ARIA 语义**：命令面板补 `aria-modal` 与 `listbox`/`option`/`aria-activedescendant`；顶栏搜索框标注 `role="combobox"` + `aria-expanded`/`aria-controls`/`aria-activedescendant`；文件树改为规范 `tree`/`treeitem` + `aria-level`/`aria-selected`/`aria-expanded`；加载指示器加 `role="status"` 实时播报；

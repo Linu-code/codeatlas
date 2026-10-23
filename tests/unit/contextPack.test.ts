@@ -225,4 +225,50 @@ describe('generateContextPack', () => {
     const normal = generateContextPack({ ...baseInput, maxTokens: 1500 });
     expect(normal.includedFiles).toBeGreaterThan(0);
   });
+
+  it('模块地图：按顶层目录聚合，标注文件数与关键文件', () => {
+    const pack = generateContextPack(baseInput);
+    expect(pack.markdown).toContain('### 模块地图');
+    expect(pack.markdown).toMatch(/`src\/` — \d+ 个文件/);
+  });
+
+  it('package.json：输出构建脚本 / 技术栈 / 包管理器', () => {
+    const pack = generateContextPack({
+      ...baseInput,
+      treePaths: [...baseInput.treePaths, 'pnpm-lock.yaml'],
+      manifestText: JSON.stringify({
+        name: 'demo',
+        version: '1.0.0',
+        main: 'src/main.ts',
+        scripts: { dev: 'vite', build: 'tsc -b && vite build', test: 'vitest run' },
+        dependencies: { react: '^18.0.0' },
+        devDependencies: { typescript: '^5.0.0' },
+      }),
+    });
+    expect(pack.markdown).toContain('## 构建与运行');
+    expect(pack.markdown).toContain('## 技术栈');
+    expect(pack.markdown).toContain('`build` = `tsc -b && vite build`');
+    expect(pack.markdown).toContain('包管理器：pnpm');
+    expect(pack.markdown).toContain('运行时依赖：react');
+
+    const parsed = JSON.parse(pack.json);
+    expect(parsed.manifest.packageManager).toBe('pnpm');
+    expect(parsed.manifest.scripts.build).toContain('vite build');
+    expect(parsed.manifest.dependencies).toContain('react');
+  });
+
+  it('入口文件写入概览与 JSON', () => {
+    const pack = generateContextPack(baseInput);
+    expect(pack.markdown).toContain('- 入口文件：');
+    expect(pack.markdown).toContain('`src/main.ts`');
+    expect(JSON.parse(pack.json).entryFiles).toContain('src/main.ts');
+  });
+
+  it('JSON files 限长：超大项目截断并给出总数', () => {
+    const paths = Array.from({ length: 500 }, (_, i) => `src/f${i}.ts`);
+    const pack = generateContextPack({ ...baseInput, treePaths: paths });
+    const parsed = JSON.parse(pack.json);
+    expect(parsed.files).toHaveLength(400);
+    expect(parsed.filesTotal).toBe(500);
+  });
 });

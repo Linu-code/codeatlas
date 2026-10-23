@@ -40,6 +40,11 @@ export interface ContextPackInput {
   readingPath?: ReadingPathEntry[];
   /** 语言标签，用于输出头部说明 */
   languageLabel?: string;
+  /**
+   * package.json 原文（可选）。传入后会解析出构建脚本 / 依赖 / 入口，
+   * 让 AI 知道"这个项目怎么跑、用什么技术栈"——超大项目只靠符号很难上手。
+   */
+  manifestText?: string;
 }
 
 export interface RankedSymbol {
@@ -117,13 +122,82 @@ export function rankSymbols(input: ContextPackInput): RankedSymbol[] {
   );
 }
 
-/** 生成文件树（带一句话说明），限制条数避免占满预算 */
-function renderFileTree(input: ContextPackInput, maxFiles: number): { text: string; included: number } {
-  const paths = input.treePaths;
+/** 文件路径 → 顶层模块名（超大项目按模块聚合才有用） */
+function moduleOf(path: string): string {
+  const i = path.indexOf('/');
+  return i < 0 ? '(根目录)' : path.slice(0, i);
+}
+
+interface ManifestInfo {
+  name?: string;
+  version?: string;
+  main?: string;
+  module?: string;
+  scripts: [string, string][];
+  deps: string[];
+  devDeps: string[];
+}
+
+/** 解析 package.json（失败返回 null，绝不影响上下文包生成） */
+function parseManifest(text: string): ManifestInfo | null {
+  try {
+    const p = JSON.parse(text) as Record<string, unknown>;
+    const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+    const obj = (v: unknown) =>
+      v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+    const scripts = Object.entries(obj(p.scripts))
+      .filter(([, v]) => typeof v === 'string')
+      .slice(0, 6)
+      .map(([k, v]) => [k, v as string] as [string, string]);
+    return {
+      name: str(p.name),
+      version: str(p.version),
+      main: str(p.main),
+      module: str(p.module),
+      scripts,
+      deps: Object.keys(obj(p.dependencies)).slice(0, 12),
+      devDeps: Object.keys(obj(p.devDependencies)).slice(0, 12),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 从锁文件推断包管理器 */
+function detectPackageManager(paths: string[]): string | null {
+  if (paths.includes('pnpm-lock.yaml')) return 'pnpm';
+  if (paths.includes('yarn.lock')) return 'yarn';
+  if (paths.includes('bun.lockb') || paths.includes('bun.lock')) return 'bun';
+  if (paths.includes('package-lock.json')) return 'npm';
+  return null;
+}
+
+/** 常见入口文件（目录浅者优先，最多 8 个） */
+function detectEntryFiles(paths: string[]): string[] {
+  const re =
+    /(^|\/)(main|index|app|server|cli|bootstrap|entry)\.(ts|tsx|js|jsx|mjs|cjs|py|go|rs|java|kt|swift|rb|php|c|cc|cpp|cs)$/i;
+  return paths
+    .filter((p) => re.test(p))
+    .sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))
+    .slice(0, 8);
+}
+
+/**
+ * 生成目录结构：目录用途 + 模块地图 + 关键文件。
+ *
+ * 不再平铺文件清单：超大项目（数千文件）平铺 60 条既占预算又几乎无信息量。
+ * 改为「模块（顶层目录）→ 文件数 → 关键文件（按 PageRank）」的层级摘要，
+ * 信息密度高且与项目规模无关（模块数天然有界）。
+ */
+function renderFileTree(
+  input: ContextPackInput,
+  fileScores: Map<string, number>,
+  maxKeyFiles: number,
+): { text: string; included: number } {
   const purposes = input.dirPurposes;
   const labels = input.purposeLabels ?? {};
 
-  // 目录用途说明块
+  // 目录用途
   const dirLines: string[] = [];
   if (purposes) {
     for (const [dir, p] of [...purposes.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 24)) {
@@ -131,24 +205,56 @@ function renderFileTree(input: ContextPackInput, maxFiles: number): { text: stri
     }
   }
 
-  // 文件清单：优先展示源码与文档，限制数量
-  const important = paths
-    .filter((p) => /\.(ts|tsx|js|jsx|py|md|json|toml|yaml|yml|go|rs|java)$/i.test(p))
-    .sort((a, b) => {
-      const depth = (s: string) => s.split('/').length;
-      return depth(a) - depth(b) || a.localeCompare(b);
+  // 模块地图：按顶层目录聚合（只统计参与分析的源码文件）
+  const byModule = new Map<string, string[]>();
+  for (const f of input.files) {
+    const m = moduleOf(f.path);
+    let arr = byModule.get(m);
+    if (!arr) {
+      arr = [];
+      byModule.set(m, arr);
+    }
+    arr.push(f.path);
+  }
+  const moduleLines = [...byModule.entries()]
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .slice(0, 30)
+    .map(([m, paths]) => {
+      const key = [...paths]
+        .sort((a, b) => (fileScores.get(b) ?? 0) - (fileScores.get(a) ?? 0))
+        .slice(0, 3)
+        .map((p) => `\`${p}\``)
+        .join(', ');
+      const label = m === '(根目录)' ? '(根目录)' : `\`${m}/\``;
+      return `- ${label} — ${paths.length} 个文件 · 关键：${key}`;
     });
-  const shown = important.slice(0, maxFiles);
 
-  const treeLines = shown.map((p) => `- \`${p}\``).join('\n');
-  const omitted = important.length - shown.length;
-  const omittedLine = omitted > 0 ? `\n- … 另有 ${omitted} 个文件未列出` : '';
+  // 关键文件：按 PageRank 排序（比"按深度平铺"更能反映核心）
+  const keyFiles = [...input.files]
+    .sort((a, b) => (fileScores.get(b.path) ?? 0) - (fileScores.get(a.path) ?? 0))
+    .slice(0, maxKeyFiles)
+    .map((f) => `- \`${f.path}\``);
+
+  // 顶层配置文件（AI 判断构建方式时常需要）
+  const isTop = (p: string) => !p.includes('/');
+  const isConfig = (p: string) =>
+    /\.(json|toml|ya?ml|ini|cfg|lock|txt)$/i.test(p) ||
+    /^(dockerfile|makefile|\.gitignore|\.editorconfig|\.env\.example)$/i.test(p);
+  const configPaths = input.treePaths.filter((p) => isTop(p) && isConfig(p)).slice(0, 12);
 
   const sections: string[] = [];
   if (dirLines.length) sections.push(`### 目录用途\n${dirLines.join('\n')}`);
-  sections.push(`### 文件清单（${shown.length}/${important.length}）\n${treeLines}${omittedLine}`);
+  if (moduleLines.length) {
+    sections.push(`### 模块地图（${byModule.size} 个模块）\n${moduleLines.join('\n')}`);
+  }
+  sections.push(
+    `### 关键文件（按重要性 Top ${keyFiles.length}/${input.files.length}）\n${keyFiles.join('\n')}`,
+  );
+  if (configPaths.length) {
+    sections.push(`### 配置文件\n${configPaths.map((p) => `- \`${p}\``).join('\n')}`);
+  }
 
-  return { text: sections.join('\n\n'), included: shown.length };
+  return { text: sections.join('\n\n'), included: keyFiles.length + configPaths.length };
 }
 
 /** 阅读路线条目（N2：由 readingPath.ts 生成，此处只关心渲染所需字段） */
@@ -188,15 +294,23 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
   const budget = input.maxTokens;
   const ranked = rankSymbols(input);
 
+  /** 文件 → PageRank（ranked 已按分数降序，首次出现即该文件的最高分） */
+  const fileScores = new Map<string, number>();
+  for (const s of ranked) if (!fileScores.has(s.file)) fileScores.set(s.file, s.score);
+
   // 项目概览（固定开销，先算出来）
   const langs = countLanguages(input.files);
   const totalSloc = input.metrics?.reduce((s, m) => s + m.sloc, 0);
+  const entries = detectEntryFiles(input.treePaths);
+  const manifest = input.manifestText ? parseManifest(input.manifestText) : null;
+  const packageManager = detectPackageManager(input.treePaths);
 
-  const header = [
+  const headerParts = [
     `# ${input.repoName} — CodeAtlas 上下文包`,
     '',
     '> 本文件由 CodeAtlas 本地静态分析生成（无 AI 参与）。',
-    '> 内容：项目概览 / 目录树 / 核心符号签名（按 PageRank 排序）/ 关键调用关系。',
+    '> 内容：项目概览 / 构建与运行 / 技术栈 / 目录结构与模块地图 / 建议阅读路线 / 核心符号签名 / 关键调用关系。',
+    '> 符号只含签名（无函数体）：需要实现细节时，请按 `路径:行号` 打开源码。',
     '',
     '## 项目概览',
     `- 仓库：${input.repoName}${input.branch ? ` @${input.branch}` : ''}`,
@@ -204,13 +318,37 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
     `- 语言分布：${langs}`,
     `- 符号总数：${ranked.length}（函数/类定义）`,
     totalSloc !== undefined ? `- 代码行数：${totalSloc}` : '',
+    entries.length ? `- 入口文件：${entries.map((e) => `\`${e}\``).join(', ')}` : '',
     `- token 预算：${budget}`,
     '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  ];
 
-  const treeBlock = renderFileTree(input, 60);
+  // 构建与运行 / 技术栈：只有拿到 package.json 时才输出（缺失不影响其它章节）
+  if (manifest) {
+    headerParts.push('## 构建与运行', '');
+    const pkg = [manifest.name, manifest.version].filter(Boolean).join('@');
+    if (pkg) headerParts.push(`- 包：${pkg}`);
+    const entry = manifest.main || manifest.module;
+    if (entry) headerParts.push(`- 入口：\`${entry}\``);
+    if (manifest.scripts.length) {
+      headerParts.push(
+        `- 脚本：${manifest.scripts.map(([k, v]) => `\`${k}\` = \`${oneLine(v)}\``).join('；')}`,
+      );
+    }
+    if (packageManager) headerParts.push(`- 包管理器：${packageManager}`);
+    headerParts.push('');
+
+    if (manifest.deps.length || manifest.devDeps.length) {
+      headerParts.push('## 技术栈', '');
+      if (manifest.deps.length) headerParts.push(`- 运行时依赖：${manifest.deps.join(', ')}`);
+      if (manifest.devDeps.length) headerParts.push(`- 开发依赖：${manifest.devDeps.join(', ')}`);
+      headerParts.push('');
+    }
+  }
+
+  const header = headerParts.filter(Boolean).join('\n');
+
+  const treeBlock = renderFileTree(input, fileScores, 40);
 
   const readingBlock = renderReadingPath(input);
 
@@ -275,6 +413,15 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
   /** 保底开销：只有项目概览时的 token 数（预算低于此值时无法进一步裁剪） */
   const minTokens = estimateTokens(header);
 
+  /**
+   * JSON 的 files 字段必须限长：全量 treePaths 在超大项目里可达数千条
+   * （≈ 上万 token），会架空"有限上下文"的意义。超出上限时截断并给出总数。
+   */
+  const MAX_JSON_FILES = 400;
+  const allFiles = input.treePaths;
+  const listedFiles =
+    allFiles.length <= MAX_JSON_FILES ? allFiles : allFiles.slice(0, MAX_JSON_FILES);
+
   const json = JSON.stringify(
     {
       generator: 'CodeAtlas',
@@ -290,6 +437,17 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
         includedSymbols: included,
         sloc: totalSloc ?? null,
       },
+      entryFiles: entries,
+      manifest: manifest
+        ? {
+            name: manifest.name ?? null,
+            version: manifest.version ?? null,
+            packageManager,
+            scripts: Object.fromEntries(manifest.scripts),
+            dependencies: manifest.deps,
+            devDependencies: manifest.devDeps,
+          }
+        : null,
       directories: input.dirPurposes
         ? [...input.dirPurposes.entries()].map(([dir, p]) => ({
             path: dir,
@@ -297,7 +455,8 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
             confidence: p.confidence,
           }))
         : [],
-      files: input.treePaths,
+      files: listedFiles,
+      filesTotal: allFiles.length,
       readingPath: (input.readingPath ?? []).map((s) => ({
         order: s.order,
         path: s.path,
