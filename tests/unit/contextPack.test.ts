@@ -271,4 +271,20 @@ describe('generateContextPack', () => {
     expect(parsed.files).toHaveLength(400);
     expect(parsed.filesTotal).toBe(500);
   });
+
+  it('公共接口：汇总导出符号名', () => {
+    const pack = generateContextPack({ ...baseInput, maxTokens: 2000 });
+    expect(pack.markdown).toContain('### 公共接口');
+    expect(pack.markdown).toContain('add');
+    expect(pack.markdown).toContain('main');
+  });
+
+  it('JSON files：被分析的关键文件排在未分析文件之前', () => {
+    const paths = ['zzz/a.ts', 'src/main.ts', 'src/util.ts', 'src/core.ts', 'aaa/b.ts'];
+    const pack = generateContextPack({ ...baseInput, treePaths: paths, maxTokens: 2000 });
+    const files: string[] = JSON.parse(pack.json).files;
+    expect(files).toHaveLength(paths.length);
+    const analyzed = new Set(['src/main.ts', 'src/util.ts', 'src/core.ts']);
+    expect(files.slice(0, 3).every((p) => analyzed.has(p))).toBe(true);
+  });
 });

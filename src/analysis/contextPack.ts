@@ -59,6 +59,8 @@ export interface RankedSymbol {
   score: number;
   /** 该符号被引用次数 */
   refCount: number;
+  /** 是否为导出 / 公开符号（用于生成"公共接口"摘要） */
+  exported: boolean;
 }
 
 export interface ContextPack {
@@ -110,6 +112,7 @@ export function rankSymbols(input: ContextPackInput): RankedSymbol[] {
         signature: def.signature,
         score,
         refCount: entry ? entry.references.length : 0,
+        exported: def.exported,
       });
     }
   }
@@ -249,6 +252,21 @@ function renderFileTree(
   if (moduleLines.length) {
     sections.push(`### 模块地图（${byModule.size} 个模块）\n${moduleLines.join('\n')}`);
   }
+
+  // 公共接口：导出符号名一行逗号分隔（token 极省，AI 判断对外契约用）
+  const exportedNames = [
+    ...new Set(
+      [...input.files]
+        .sort((a, b) => (fileScores.get(b.path) ?? 0) - (fileScores.get(a.path) ?? 0))
+        .flatMap((f) => f.definitions.filter((d) => d.exported).map((d) => d.name)),
+    ),
+  ].slice(0, 60);
+  if (exportedNames.length) {
+    sections.push(
+      `### 公共接口（导出符号 Top ${exportedNames.length}）\n${exportedNames.join(', ')}`,
+    );
+  }
+
   sections.push(
     `### 关键文件（按重要性 Top ${keyFiles.length}/${input.files.length}）\n${keyFiles.join('\n')}`,
   );
@@ -420,12 +438,29 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
 
   /**
    * JSON 的 files 字段必须限长：全量 treePaths 在超大项目里可达数千条
-   * （≈ 上万 token），会架空"有限上下文"的意义。超出上限时截断并给出总数。
+   * （≈ 上万 token），会架空"有限上下文"的意义。
+   * 排序也重要：先按 PageRank 放**关键文件**，再用其余路径补满 ——
+   * 若只按文件树顺序截断，前 400 条可能全是某个字母序靠前的目录。
    */
   const MAX_JSON_FILES = 400;
   const allFiles = input.treePaths;
-  const listedFiles =
-    allFiles.length <= MAX_JSON_FILES ? allFiles : allFiles.slice(0, MAX_JSON_FILES);
+  const byImportance = [...fileScores.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([p]) => p);
+  const listedFiles: string[] = [];
+  const pickedFiles = new Set<string>();
+  for (const p of byImportance) {
+    if (listedFiles.length >= MAX_JSON_FILES) break;
+    if (pickedFiles.has(p)) continue;
+    pickedFiles.add(p);
+    listedFiles.push(p);
+  }
+  for (const p of allFiles) {
+    if (listedFiles.length >= MAX_JSON_FILES) break;
+    if (pickedFiles.has(p)) continue;
+    pickedFiles.add(p);
+    listedFiles.push(p);
+  }
 
   const json = JSON.stringify(
     {

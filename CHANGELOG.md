@@ -2,6 +2,15 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。
 
+## [Unreleased]
+
+### 变更 / 修复
+
+- **上下文包可用性打磨**：
+  - **JSON `files` 改为关键文件优先**：先按 PageRank 放已分析文件，再用其余路径补满 400 条（此前按文件树字母序截断，前 400 条可能全落在某个目录）。
+  - **新增「公共接口（导出符号）」摘要**：一行逗号分隔的导出符号名（最多 60 个），token 极省，方便 AI 快速判断对外契约。
+  - **修复**：ZIP 项目的「刷新」按钮此前点击无效（ZIP 为不可变快照），现按数据源能力禁用；GitHub / 本地目录仍可刷新。
+
 ## [2.0.0] - 2026-10-23
 
 > **2.0 亮点**：12 个语言族 / 5000 文件规模、阅读路线与命令面板、架构视图（模块依赖 · 循环依赖 · 类图 · 分层）、
@@ -136,5 +145,6 @@
 - **版本号统一为 `1.0.0`**：此前 `package.json` 为 `0.1.0` 而 git tag 为 `1.0`，现全部对齐（`package.json` / `Cargo.toml` / `tauri.conf.json` / `Cargo.lock` / 状态栏 / CI 模板）。
 - 打包与发布统一使用 `npm run build:exe`（自动注入 MSVC 环境并复制产物到仓库根目录）。
 
+[Unreleased]: https://github.com/Linu-code/codeatlas/compare/v2.0.0...HEAD
 [2.0.0]: https://github.com/Linu-code/codeatlas/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/Linu-code/codeatlas/releases/tag/v1.0.0

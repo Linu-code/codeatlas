@@ -453,6 +453,7 @@ export default function ProjectView({
     <div className="flex h-full flex-col overflow-hidden">
       <ToolBar
         hasProject={Boolean(fs)}
+        canRefresh={repo.canRefresh}
         panel={panel}
         analyzing={analysis.state.running}
         analyzingLabel={t('analysis:analyzing')}

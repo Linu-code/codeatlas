@@ -20,6 +20,8 @@ export type BottomPanel =
 
 interface Props {
   hasProject: boolean;
+  /** 当前数据源是否支持刷新（ZIP 为不可变快照，刷新无意义） */
+  canRefresh: boolean;
   panel: BottomPanel;
   analyzing: boolean;
   analyzingLabel: string;
@@ -31,6 +33,7 @@ interface Props {
 
 export default function ToolBar({
   hasProject,
+  canRefresh,
   panel,
   analyzing,
   analyzingLabel,
@@ -94,7 +97,7 @@ export default function ToolBar({
         !hasProject,
       )}
       {btn(t('analysis:contextPack'), false, onToggleContextPack, !hasProject)}
-      {btn(t('common:refresh'), false, onRefresh, !hasProject)}
+      {btn(t('common:refresh'), false, onRefresh, !hasProject || !canRefresh)}
 
       <div className="ms-auto flex items-center gap-2">
         {btn(t('common:settings'), false, onOpenSettings, false, 'open-settings')}

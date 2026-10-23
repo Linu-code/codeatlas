@@ -58,6 +58,8 @@ export function useRepo(options: UseRepoOptions = {}) {
 
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
+  /** 当前数据源是否支持"刷新"（ZIP 是不可变快照，刷新无意义） */
+  const [canRefresh, setCanRefresh] = useState(false);
 
   const requestIdRef = useRef(0);
   /**
@@ -136,6 +138,7 @@ export function useRepo(options: UseRepoOptions = {}) {
       setLoading(true);
       setError(null);
       lastTargetRef.current = { kind: 'github', ...parsed };
+      setCanRefresh(true);
       try {
         const source = createGithubRepo(parsed, { token, jsdelivrFallback, forceRefresh: opts.forceRefresh });
         if (opts.forceRefresh && 'clearCache' in source) {
@@ -159,6 +162,7 @@ export function useRepo(options: UseRepoOptions = {}) {
       setLoading(true);
       setError(null);
       lastTargetRef.current = null;
+      setCanRefresh(false);
       try {
         await mountSource(await createZipRepo(file), rid);
       } catch (e) {
@@ -178,6 +182,7 @@ export function useRepo(options: UseRepoOptions = {}) {
       setLoading(true);
       setError(null);
       lastTargetRef.current = null;
+      setCanRefresh(false);
       try {
         await mountSource(await createZipRepoFromBytes(bytes, fileName), rid);
       } catch (e) {
@@ -197,6 +202,7 @@ export function useRepo(options: UseRepoOptions = {}) {
       setLoading(true);
       setError(null);
       lastTargetRef.current = { kind: 'local', rootPath };
+      setCanRefresh(true);
       try {
         await mountSource(await createLocalDirRepo(rootPath), rid);
       } catch (e) {
@@ -245,6 +251,7 @@ export function useRepo(options: UseRepoOptions = {}) {
     readme,
     loading,
     error,
+    canRefresh,
     tabs,
     activeTab,
     activeTabData: tabs.find((t) => t.path === activeTab) ?? null,
