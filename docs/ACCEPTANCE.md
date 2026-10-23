@@ -55,7 +55,7 @@
 | **N5③** 多项目工作区 | 同一窗口打开多个项目，顶部项目标签切换；各项目的浏览标签 / 分析结果 / 搜索结果互不影响；单项目时标签条隐藏（视觉与旧版一致） | 📄 `src/workspace/workspace.ts`（项目列表 / 激活 / 打开 / 关闭 store）、`src/hooks/useWorkspace.ts`、`src/components/ProjectView.tsx` / `ProjectTabs.tsx`、`src/hooks/useLauncher.ts`；单测 `tests/unit/workspace.test.ts`（8 例）；E2E `tests/e2e/workspace.spec.ts`（开两个 ZIP → 出现 2 个项目标签 → 切换 → 关闭回到 1） | ✅ |
 | N5③ 打开语义 | 首个（空）项目就地加载（不新增标签）；已有项目时再打开则追加标签并激活；加载中的项目不被后续打开抢占 | 单测 `workspace.test.ts` 的就地加载 / 追加 / 加载中不抢占用例 | ✅ |
 | **N6** 版本号 2.0.0 | package.json / Cargo.toml / Cargo.lock（codeatlas 包）/ tauri.conf.json / App.tsx 状态栏全部对齐 2.0.0 | 代码审查 + grep 五处 `1.0.0` → `2.0.0`；`npm run check:tree-sitter` 与 `tsc -b` 仍绿 | ✅ |
-| **N6** ABI 升级（web-tree-sitter 0.22 → 0.25） | 运行时与 14 个语法包 ABI 兼容，解析正常、共存复解析正常；前端 / Worker / Rust 编译全绿 | `npm run check:tree-sitter`（14 个语法包 + 共存复解析全绿，LANGUAGE_VERSION=15）；`tsc -b` 绿；单测 282/282；E2E 31/31；`npm run build:exe` 产出 CodeAtlas.exe（10.4 MB）+ CodeAtlas_2.0.0_x64-setup.exe（4.8 MB） | ✅ |
+| **N6** ABI 升级（web-tree-sitter 0.22 → 0.25） | 运行时与 14 个语法包 ABI 兼容，解析正常、共存复解析正常；前端 / Worker / Rust 编译全绿 | `npm run check:tree-sitter`（14 个语法包 + 共存复解析全绿，LANGUAGE_VERSION=15）；`tsc -b` 绿；单测 290/290；E2E 33/33；`npm run build:exe` 产出 CodeAtlas.exe（10.4 MB）+ CodeAtlas_2.0.0_x64-setup.exe（4.8 MB） | ✅ |
 | **N6** 在线场景 E2E | 本机无真实 GitHub 网络时，在线流程（加载仓库 / 搜索）仍被真实执行并断言 | E2E `tests/e2e/github-online.spec.ts`（`page.route` mock `api.github.com` / `raw.githubusercontent.com`，断言文件树 + README 渲染 + 搜索结果 `listbox` + combobox 键盘导航）；`network-whitelist.spec.ts` 在线用例改 mock 驱动、断言仅 GitHub 域，不再 `test.skip` | ✅ |
 | **N6** 可访问性 | 键盘导航 / ARIA / 对比度三项达标 | E2E `tests/e2e/a11y.spec.ts`（对话框焦点陷阱 + Esc + 焦点归还；命令面板 `aria-activedescendant` 随 `↑↓` 变化；文件树 roving tabindex + `tree`/`treeitem` 语义；四套主题次要文本对比度 ≥ WCAG AA 4.5:1）；📄 `src/hooks/useFocusTrap.ts`、`src/components/{CommandPalette,TopBar,FileTree,SettingsDialog,ContextPackDialog}.tsx`、`src/index.css` | ✅ |
 
@@ -65,10 +65,10 @@
 ## 复现命令
 
 ```bash
-# 单元测试（282 个用例，实际数量以 npm test 输出为准）
+# 单元测试（290 个用例，实际数量以 npm test 输出为准）
 npm test
 
-# E2E（11 个 spec / 31 个用例；截图生成到 docs/screenshots/）
+# E2E（12 个 spec / 33 个用例；截图生成到 docs/screenshots/）
 npm run build && npm run e2e
 
 # tree-sitter 语法包自检（14 个语法包逐一解析 + 共存复解析）

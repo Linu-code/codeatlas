@@ -6,6 +6,7 @@
 
 ### 新增
 
+- **AST 解析迁入 Web Worker**：主线程只负责读文件 / 查增量缓存 / 汇总，tree-sitter 解析与度量在 `src/workers/analysis.worker.ts` 中执行。按 **200 文件**分块读取、**25 文件**分批投递，内存峰值可控且进度更新更细；结果按路径排序，派生分析（调用图 / 阅读路径 / 模块图）输出更稳定。Worker 创建失败 / 运行时报错 / 120s 超时都会**自动回退主线程**，功能不降级（Worker 只加速）。配套：`vite.config.ts` 设 `worker.format = 'es'`（worker 内有动态 import）；grammar 目录由主线程换算成**绝对 URL** 下发（`base: './'` 时相对路径会相对 worker 脚本解析而 404）。E2E 新增 `analysis-worker.spec.ts`，断言 Worker 确实被创建且完成解析。
 - **工作区持久化**：重启 / 刷新后自动恢复上次打开的 **GitHub 与本地目录**项目（ZIP 是内存快照，无法还原，不持久化）；拖入 ZIP/目录打开的多窗口既不恢复也不写入，避免多窗口互相覆盖。存储于 `localStorage`（键 `codeatlas.workspace.v1`），读取前做结构校验，损坏时静默忽略。单测 +5、E2E +1（刷新后自动恢复）。
 - **TypeScript 类型声明提取**：新增 `interface` / `type` 别名 / `enum` 三类符号（此前只认 `class`），`abstract class` 也归入 `class`。符号种类扩展后，大纲图标（I / T / E）、上下文包 `(interface|type|enum)` 标签同步；C/Go/Rust 的 struct/interface 仍按 `class` 收录，不影响既有类图与度量语义。单测 +3（`tests/unit/langs.test.ts`）。
 

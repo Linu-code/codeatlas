@@ -16,7 +16,7 @@
  *   · 单个文件解析异常只跳过该文件，不中断整体
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileNode, RepoFS, RepoError } from '../types/repo';
 import { flattenFiles } from '../sources/tree';
 import { langOfPath, parseCode } from '../analysis/parser';
@@ -34,8 +34,45 @@ import { buildClassGraph, MAX_CLASS_NODES, type ClassGraph } from '../analysis/c
 import { annotateDirectories } from '../analysis/directories';
 import { hashText } from '../utils/hash';
 import { getCachedAnalysis, putCachedAnalysis } from '../analysis/analysisCache';
+import { AnalysisWorker } from '../analysis/analysisWorker';
+import type { AnalyzeBatchResult, ParseJob } from '../analysis/analysisJobs';
 
 const READ_CONCURRENCY = 8;
+
+/** 每批"读取 + 解析"的文件数：源码文本只在批内驻留，控制内存峰值 */
+const CHUNK_SIZE = 200;
+/** 每次投递给 Worker 的文件数：批次更小，进度更新更细 */
+const PARSE_BATCH = 25;
+
+/**
+ * 主线程兜底解析。
+ * Worker 创建失败 / 运行时报错 / 超时时走这里，保证功能永远可用（Worker 只是加速）。
+ */
+async function parseOnMain(batch: ParseJob[]): Promise<AnalyzeBatchResult[]> {
+  const out: AnalyzeBatchResult[] = [];
+  for (const job of batch) {
+    const lang = langOfPath(job.path);
+    if (!lang) {
+      out.push({ path: job.path, error: 'unsupported' });
+      continue;
+    }
+    try {
+      const parsed = await parseCode(job.code, lang);
+      if (!parsed) {
+        out.push({ path: job.path, error: 'parse-failed' });
+        continue;
+      }
+      out.push({
+        path: job.path,
+        analysis: extractFile(parsed.rootNode, job.path, lang),
+        metrics: computeMetrics(parsed.rootNode, job.path, lang, job.code),
+      });
+    } catch (e) {
+      out.push({ path: job.path, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return out;
+}
 
 /** 参与增量统计的标记：N4 用于在状态里暴露「缓存命中 / 重解析」计数 */
 export interface IncrementalStats {
@@ -125,6 +162,21 @@ export function useCodeAnalysis() {
    */
   const stateRef = useRef<AnalysisState>(INITIAL);
 
+  /** 解析 Worker（懒启动；不可用时自动回退主线程） */
+  const parseClientRef = useRef<AnalysisWorker | null>(null);
+  const parseClient = useCallback((): AnalysisWorker => {
+    if (!parseClientRef.current) parseClientRef.current = new AnalysisWorker();
+    return parseClientRef.current;
+  }, []);
+
+  useEffect(
+    () => () => {
+      parseClientRef.current?.dispose();
+      parseClientRef.current = null;
+    },
+    [],
+  );
+
   const commit = useCallback((next: AnalysisState) => {
     stateRef.current = next;
     setState(next);
@@ -162,10 +214,20 @@ export function useCodeAnalysis() {
 
       const results: FileAnalysis[] = [];
       const metricsByPath = new Map<string, FileMetrics>();
-      let parsedCount = 0;
       // N4：增量统计
       let cachedCount = 0;
       let failedCount = 0;
+      let processedCount = 0;
+      const bump = (n: number): void => {
+        processedCount += n;
+        if (runId !== runIdRef.current) return;
+        if (processedCount % progressStep === 0 || processedCount >= targets.length) {
+          setState((prev) => ({
+            ...prev,
+            progress: { parsed: processedCount, total: targets.length },
+          }));
+        }
+      };
       /**
        * 本仓库的分析缓存命名空间。
        * github：owner/repo@branch；zip：文件名；local：目录绝对路径（防不同目录同名冲突）。
@@ -176,59 +238,89 @@ export function useCodeAnalysis() {
           ? `local:${fs.meta.rootPath.replace(/[\\/]+$/, '')}`
           : fs.meta.name;
 
-      const queue = [...targets];
-      const worker = async () => {
-        for (;;) {
-          const path = queue.shift();
-          if (path === undefined) return;
-          if (runId !== runIdRef.current) return;
-          try {
-            const code = await fs.readFile(path);
-            if (code.length <= MAX_SOURCE_BYTES) {
+      /**
+       * 阶段一：读文件 + 查增量缓存（主线程只做 I/O 与缓存，不做 AST）。
+       * 未命中的源码暂存到 misses，交给 Worker 解析。
+       */
+      const readChunk = async (
+        chunk: string[],
+        misses: { path: string; code: string; hash: string }[],
+      ): Promise<void> => {
+        let cursor = 0;
+        const reader = async () => {
+          for (;;) {
+            const i = cursor++;
+            if (i >= chunk.length) return;
+            if (runId !== runIdRef.current) return;
+            const path = chunk[i];
+            try {
+              const code = await fs.readFile(path);
               const lang = langOfPath(path);
-              if (lang) {
-                const hash = hashText(code);
-                // ① 缓存命中：直接复用解析结果，跳过 AST 解析（大仓库核心加速）
-                if (!opts.force) {
-                  const cached = await getCachedAnalysis(cacheNs, hash, path);
-                  if (cached) {
-                    results.push(cached.analysis);
-                    if (cached.metrics) metricsByPath.set(path, cached.metrics);
-                    cachedCount++;
-                    continue;
-                  }
-                }
-                // ② 未命中：解析 + 度量，写回缓存供下次复用
-                const parsed = await parseCode(code, lang);
-                if (parsed) {
-                  const fa = extractFile(parsed.rootNode, path, lang);
-                  results.push(fa);
-                  // 度量必须用源码文本（SLOC 依赖行内容），紧随解析进行
-                  const fm = computeMetrics(parsed.rootNode, path, lang, code);
-                  metricsByPath.set(path, fm);
-                  if (!opts.force) void putCachedAnalysis(cacheNs, hash, fa, fm);
+              if (code.length > MAX_SOURCE_BYTES || !lang) {
+                failedCount++;
+                bump(1);
+                continue;
+              }
+              const hash = hashText(code);
+              // ① 缓存命中：直接复用解析结果，跳过 AST 解析（大仓库核心加速）
+              if (!opts.force) {
+                const cached = await getCachedAnalysis(cacheNs, hash, path);
+                if (cached) {
+                  results.push(cached.analysis);
+                  if (cached.metrics) metricsByPath.set(path, cached.metrics);
+                  cachedCount++;
+                  bump(1);
+                  continue;
                 }
               }
-            }
-          } catch {
-            // 读取/解析失败：跳过该文件
-            failedCount++;
-          } finally {
-            parsedCount++;
-            if (
-              runId === runIdRef.current &&
-              (parsedCount % progressStep === 0 || parsedCount === targets.length)
-            ) {
-              setState((prev) => ({
-                ...prev,
-                progress: { parsed: parsedCount, total: targets.length },
-              }));
+              // ② 未命中：进入解析队列（解析完成后再 bump，进度更真实）
+              misses.push({ path, code, hash });
+            } catch {
+              failedCount++;
+              bump(1);
             }
           }
-        }
+        };
+        await Promise.all(
+          Array.from({ length: Math.min(READ_CONCURRENCY, chunk.length) }, reader),
+        );
       };
 
-      await Promise.all(Array.from({ length: Math.min(READ_CONCURRENCY, targets.length) }, worker));
+      for (let start = 0; start < targets.length; start += CHUNK_SIZE) {
+        if (runId !== runIdRef.current) return stateRef.current;
+        const chunk = targets.slice(start, start + CHUNK_SIZE);
+        const misses: { path: string; code: string; hash: string }[] = [];
+        await readChunk(chunk, misses);
+        if (runId !== runIdRef.current) return stateRef.current;
+
+        // 阶段二：Worker 解析（不可用/超时 → 主线程兜底），小批次便于刷新进度
+        for (let b = 0; b < misses.length; b += PARSE_BATCH) {
+          if (runId !== runIdRef.current) return stateRef.current;
+          const batch = misses.slice(b, b + PARSE_BATCH);
+          const jobs: ParseJob[] = batch.map((m) => ({ path: m.path, code: m.code }));
+          const parsed = (await parseClient().analyze(jobs)) ?? (await parseOnMain(jobs));
+
+          const hashByPath = new Map(batch.map((m) => [m.path, m.hash]));
+          for (const r of parsed) {
+            if (r.analysis) {
+              results.push(r.analysis);
+              if (r.metrics) metricsByPath.set(r.path, r.metrics);
+              const hash = hashByPath.get(r.path);
+              if (hash && !opts.force) {
+                void putCachedAnalysis(cacheNs, hash, r.analysis, r.metrics ?? null);
+              }
+            } else {
+              failedCount++;
+            }
+          }
+          // 防御：Worker 少回结果时也推进进度，避免卡在 99%
+          bump(parsed.length);
+          if (parsed.length < batch.length) bump(batch.length - parsed.length);
+        }
+      }
+
+      // 按路径排序：让派生分析（调用图 / 阅读路线 / 模块图）输出稳定可复现
+      results.sort((a, b) => a.path.localeCompare(b.path));
       if (runId !== runIdRef.current) return stateRef.current;
 
       // ---------- 派生分析结果 ----------
@@ -256,7 +348,7 @@ export function useCodeAnalysis() {
       signatureRef.current = signature;
       const next: AnalysisState = {
         running: false,
-        progress: { parsed: parsedCount, total: targets.length },
+        progress: { parsed: processedCount, total: targets.length },
         incremental: { cached: cachedCount, parsed: results.length - cachedCount, failed: failedCount },
         files: results,
         metrics,

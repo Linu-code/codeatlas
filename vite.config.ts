@@ -22,6 +22,11 @@ export default defineConfig({
     // 但它们只在打开"调用图"面板时按需加载，不影响首屏，故放宽警告阈值。
     chunkSizeWarningLimit: 1600,
   },
+  // 解析 Worker 内部有动态 import（web-tree-sitter 运行时 wasm），
+  // iife 不支持代码分割，必须输出 ES 模块（WebView2 / Chromium 均支持 module worker）。
+  worker: {
+    format: 'es',
+  },
   test: {
     environment: 'node',
     include: ['tests/unit/**/*.test.ts'],
