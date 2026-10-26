@@ -19,6 +19,7 @@ playwright-report
 
 # packaged artifacts (produced by scripts/build-exe.ps1, copied to repo root)
 /CodeAtlas.exe
+/CodeAtlas.exe.old
 /CodeAtlas_*-setup.exe
 
 # scratch files
