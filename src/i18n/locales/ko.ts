@@ -243,6 +243,8 @@ export const ko = {
     'zip-insecure': 'ZIP에 안전하지 않은 경로가 있어 로드를 거부했습니다(경로 탈출 공격 의심)',
     'parse-error': '파일 파싱에 실패했습니다',
     'not-found-dir': '디렉터리가 없거나 권한이 없거나 디렉터리가 아닙니다. 경로를 확인하세요',
+    truncated:
+      '저장소가 너무 커서 GitHub이 파일 트리의 일부만 반환했습니다(10만 개 초과). 특정 하위 폴더를 열거나 ZIP으로 불러오세요',
     unsupportedLanguage: '이 언어는 아직 파싱을 지원하지 않습니다',
   },
 } as const;

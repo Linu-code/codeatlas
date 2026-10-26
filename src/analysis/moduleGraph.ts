@@ -59,10 +59,37 @@ export interface LayerGroup {
   files: number;
 }
 
-/** 取文件所属模块（顶层目录） */
+/**
+ * 唯一的代码包裹层：绝大多数仓库把源码放在 `src/` 下，
+ * 若照顶层目录聚合，整份代码会塌成一个节点，模块图/循环依赖全部失效。
+ */
+const WRAPPER_DIRS = new Set(['src']);
+
+/**
+ * monorepo 容器目录：`packages/<pkg>/src/x.ts` 的模块边界是 `packages/<pkg>`，
+ * 只取第一段会让整个 monorepo（Vue 的 700 个文件、1200+ 条依赖）塌成一个节点。
+ */
+const PACKAGE_DIRS = new Set(['packages', 'libs', 'modules', 'apps']);
+
+/**
+ * 取文件所属模块。
+ *
+ * 规则（自上而下匹配）：
+ *   · 顶层文件 → `(root)`
+ *   · `packages/<pkg>/...` → `packages/<pkg>`
+ *   · `src/<sub>/...` → `src/<sub>`
+ *   · 其余 → 第一段目录
+ */
 export function moduleOf(path: string): string {
-  const slash = path.indexOf('/');
-  return slash === -1 ? '(root)' : path.slice(0, slash);
+  const parts = path.split('/');
+  if (parts.length === 1) return '(root)';
+
+  const head = parts[0].toLowerCase();
+  if (parts.length >= 3 && (PACKAGE_DIRS.has(head) || WRAPPER_DIRS.has(head))) {
+    return `${parts[0]}/${parts[1]}`;
+  }
+
+  return parts[0];
 }
 
 /** 目录深度：顶层目录 1，根目录聚合 0 */

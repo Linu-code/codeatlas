@@ -243,6 +243,8 @@ export const fr = {
     'zip-insecure': 'Le ZIP contient des chemins non sûrs : chargement refusé (possible attaque par traversée de répertoire)',
     'parse-error': 'Échec de l’analyse du fichier',
     'not-found-dir': 'Dossier inexistant, non autorisé ou n’étant pas un dossier. Vérifiez le chemin',
+    truncated:
+      'Dépôt trop volumineux : GitHub n’a renvoyé qu’une partie de l’arborescence (plus de 100 000 entrées). Ouvrez un sous-dossier précis ou chargez-le en ZIP',
     unsupportedLanguage: 'Ce langage n’est pas encore pris en charge',
   },
 } as const;

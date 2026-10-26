@@ -243,6 +243,8 @@ export const pt = {
     'zip-insecure': 'O ZIP contém caminhos inseguros e o carregamento foi recusado (possível ataque de path traversal)',
     'parse-error': 'Falha ao analisar o arquivo',
     'not-found-dir': 'A pasta não existe, sem permissão ou não é uma pasta. Verifique o caminho',
+    truncated:
+      'Repositório muito grande: o GitHub retornou apenas parte da árvore de arquivos (mais de 100 mil entradas). Abra uma subpasta específica ou carregue como ZIP',
     unsupportedLanguage: 'Esta linguagem ainda não é suportada',
   },
 } as const;

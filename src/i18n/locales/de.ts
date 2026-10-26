@@ -243,6 +243,8 @@ export const de = {
     'zip-insecure': 'Die ZIP-Datei enthält unsichere Pfade; Laden abgelehnt (möglicher Path-Traversal-Angriff)',
     'parse-error': 'Datei konnte nicht analysiert werden',
     'not-found-dir': 'Verzeichnis existiert nicht, keine Berechtigung oder kein Verzeichnis. Pfad prüfen',
+    truncated:
+      'Repository zu groß: GitHub hat nur einen Teil des Dateibaums zurückgegeben (über 100 000 Einträge). Öffnen Sie einen bestimmten Unterordner oder laden Sie es als ZIP',
     unsupportedLanguage: 'Diese Sprache wird noch nicht unterstützt',
   },
 } as const;

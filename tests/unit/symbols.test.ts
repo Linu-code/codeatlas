@@ -143,6 +143,47 @@ describe('extractFile（Python）', () => {
   });
 });
 
+describe('CommonJS 依赖识别', () => {
+  const CJS_SAMPLE = `
+const express = require('express');
+const { join } = require('node:path');
+const router = require('./router');
+const app = express();
+
+function boot(port) {
+  app.listen(port);
+  return join(__dirname, 'static');
+}
+
+async function lazy() {
+  const mod = await import('./heavy');
+  return mod.run();
+}
+
+module.exports = { app, boot, lazy };
+`;
+
+  it('require() / import() 计入依赖', async () => {
+    const parsed = await parseCode(CJS_SAMPLE, 'javascript');
+    const analysis = extractFile(parsed!.rootNode, 'lib/app.js', 'javascript');
+
+    expect(analysis.imports).toContain('express');
+    expect(analysis.imports).toContain('node:path');
+    expect(analysis.imports).toContain('./router');
+    expect(analysis.imports).toContain('./heavy');
+  });
+
+  it('require 不进调用图（否则它会成为入度最高的"函数"）', async () => {
+    const parsed = await parseCode(CJS_SAMPLE, 'javascript');
+    const analysis = extractFile(parsed!.rootNode, 'lib/app.js', 'javascript');
+
+    expect(analysis.calls.some((c) => c.to === 'require')).toBe(false);
+    expect(analysis.calls.some((c) => c.to === 'import')).toBe(false);
+    // 真正的业务调用仍在
+    expect(analysis.calls.some((c) => c.to === 'listen')).toBe(true);
+  });
+});
+
 describe('降级行为', () => {
   it('语法错误时不抛异常，仍返回部分结果（hasError 标记为 true）', async () => {
     const broken = 'function ok(){ return 1; }\nfunction broken( {\n  ??? \n';

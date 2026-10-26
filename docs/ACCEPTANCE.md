@@ -55,17 +55,23 @@
 | **N5③** 多项目工作区 | 同一窗口打开多个项目，顶部项目标签切换；各项目的浏览标签 / 分析结果 / 搜索结果互不影响；单项目时标签条隐藏（视觉与旧版一致） | 📄 `src/workspace/workspace.ts`（项目列表 / 激活 / 打开 / 关闭 store）、`src/hooks/useWorkspace.ts`、`src/components/ProjectView.tsx` / `ProjectTabs.tsx`、`src/hooks/useLauncher.ts`；单测 `tests/unit/workspace.test.ts`（8 例）；E2E `tests/e2e/workspace.spec.ts`（开两个 ZIP → 出现 2 个项目标签 → 切换 → 关闭回到 1） | ✅ |
 | N5③ 打开语义 | 首个（空）项目就地加载（不新增标签）；已有项目时再打开则追加标签并激活；加载中的项目不被后续打开抢占 | 单测 `workspace.test.ts` 的就地加载 / 追加 / 加载中不抢占用例 | ✅ |
 | **N6** 版本号 2.0.0 | package.json / Cargo.toml / Cargo.lock（codeatlas 包）/ tauri.conf.json / App.tsx 状态栏全部对齐 2.0.0 | 代码审查 + grep 五处 `1.0.0` → `2.0.0`；`npm run check:tree-sitter` 与 `tsc -b` 仍绿 | ✅ |
-| **N6** ABI 升级（web-tree-sitter 0.22 → 0.25） | 运行时与 14 个语法包 ABI 兼容，解析正常、共存复解析正常；前端 / Worker / Rust 编译全绿 | `npm run check:tree-sitter`（14 个语法包 + 共存复解析全绿，LANGUAGE_VERSION=15）；`tsc -b` 绿；单测 297/297；E2E 34/34；`npm run build:exe` 产出 CodeAtlas.exe（10.4 MB）+ CodeAtlas_2.0.0_x64-setup.exe（4.8 MB） | ✅ |
+| **N6** ABI 升级（web-tree-sitter 0.22 → 0.25） | 运行时与 14 个语法包 ABI 兼容，解析正常、共存复解析正常；前端 / Worker / Rust 编译全绿 | `npm run check:tree-sitter`（14 个语法包 + 共存复解析全绿，LANGUAGE_VERSION=15）；`tsc -b` 绿；单测 305/305；E2E 34/34；`npm run build:exe` 产出 CodeAtlas.exe（10.4 MB）+ CodeAtlas_2.0.0_x64-setup.exe（4.8 MB） | ✅ |
 | **N6** 在线场景 E2E | 本机无真实 GitHub 网络时，在线流程（加载仓库 / 搜索）仍被真实执行并断言 | E2E `tests/e2e/github-online.spec.ts`（`page.route` mock `api.github.com` / `raw.githubusercontent.com`，断言文件树 + README 渲染 + 搜索结果 `listbox` + combobox 键盘导航）；`network-whitelist.spec.ts` 在线用例改 mock 驱动、断言仅 GitHub 域，不再 `test.skip` | ✅ |
 | **N6** 可访问性 | 键盘导航 / ARIA / 对比度三项达标 | E2E `tests/e2e/a11y.spec.ts`（对话框焦点陷阱 + Esc + 焦点归还；命令面板 `aria-activedescendant` 随 `↑↓` 变化；文件树 roving tabindex + `tree`/`treeitem` 语义；四套主题次要文本对比度 ≥ WCAG AA 4.5:1）；📄 `src/hooks/useFocusTrap.ts`、`src/components/{CommandPalette,TopBar,FileTree,SettingsDialog,ContextPackDialog}.tsx`、`src/index.css` | ✅ |
 
+| **N7** 真实仓库泛用性 | 用 8 个形态各异的真实 GitHub 仓库跑完整管线，解析零失败、依赖图与复杂度可信 | 样本：express（CommonJS）、flask（Python `src/<pkg>`）、chalk、tsup（`src/` 分层）、vuejs/core（monorepo 13 包）、gin（Go）、sindresorhus-is、octocat/Hello-World；约 1400 个源文件，`parseFailed=0`。修复前实测问题与修复后对比：express 依赖边 **0 → 65**（并检出 2 个真实文件级循环）、Vue 模块节点 **4 → 16** / 边 **4 → 22**、Vue 最大圈复杂度 **407 → 207**。回归用例：`tests/unit/{githubSource,symbols,buildTree,moduleGraph}.test.ts`（+9 例） | ✅ |
+
 > 说明：C# / C++ 的语法树不区分类与接口，Kotlin 靠 `Base()` 括号区分，Ruby 的 `include` 不算继承 ——
 > 这些差异都写在对应 LangHandler 的注释里，面板统计行也会如实标注（不给"看起来很对"的假信息）。
+>
+> 已知上游限制：tree-sitter-wasms 0.1.13 的 TypeScript 语法包在 3 类写法上会报 `hasError`
+> （类型位置的 `import('m').T`、`in` 作属性名、正则字面量里的 `<!--`）。实测 Vue 的 1400 个文件中
+> 命中 4 个（0.28%），符号与度量仍可从部分 AST 提取，调用图面板会把这类文件计入 `failedFiles` 计数。
 
 ## 复现命令
 
 ```bash
-# 单元测试（297 个用例，实际数量以 npm test 输出为准）
+# 单元测试（305 个用例，实际数量以 npm test 输出为准）
 npm test
 
 # E2E（12 个 spec / 34 个用例；截图生成到 docs/screenshots/）

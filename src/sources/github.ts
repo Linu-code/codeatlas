@@ -171,7 +171,19 @@ export class GitHubSource implements RepoFS {
     const data = (await res.json()) as { tree?: GhTreeEntry[]; truncated?: boolean };
     if (!data.tree) throw new RepoError('not-found', 'empty tree');
 
+    // 超大树：GitHub 只返回前 10 万条 / 前 7MB，静默接受会让用户看到"少了一半的仓库"，
+    // 且后续所有分析（度量、调用图、架构）都基于残缺数据。宁可明确报错。
+    if (data.truncated) {
+      throw new RepoError(
+        'truncated',
+        `github tree truncated for ${this.opts.owner}/${this.opts.repo}`,
+      );
+    }
+
     const entries = data.tree
+      // 子模块（type: 'commit'，mode 160000）不是文件，内容在另一个仓库里 ——
+      // 当成文件会让点击时 raw 404，直接跳过。
+      .filter((e) => e.type === 'blob' || e.type === 'tree')
       .filter((e) => !prefix || e.path.startsWith(prefix))
       .map((e) => ({
         path: prefix ? e.path.slice(prefix.length) : e.path,
@@ -188,15 +200,21 @@ export class GitHubSource implements RepoFS {
     const res = await fetchWithTimeout(url, {}, 15_000, true);
     if (!res.ok) throw await toRepoError(res, 'jsdelivr data');
     const data = (await res.json()) as { files?: JsdelivrFile[] };
-    const prefix = this.opts.subDir ? this.opts.subDir + '/' : '';
+
+    // jsDelivr 的 name 是带前导斜杠的绝对路径（`/src/index.js`），
+    // 子目录过滤必须在剥掉斜杠后做，否则 subDir 永远匹配不上。
+    const prefix = this.opts.subDir ? this.opts.subDir.replace(/^\/+|\/+$/g, '') + '/' : '';
     const entries: FileNode[] = (data.files ?? [])
       .filter((f) => f.type === 'file')
-      .map((f) => ({
-        path: prefix ? f.name.slice(prefix.length) : f.name,
+      .map((f) => ({ full: f.name.replace(/^\/+/, ''), size: f.size }))
+      .filter(({ full }) => full.length > 0 && (!prefix || full.startsWith(prefix)))
+      .map(({ full, size }) => ({
+        path: prefix ? full.slice(prefix.length) : full,
         type: 'file' as const,
-        size: f.size,
+        size,
       }))
-      .filter((e) => e.path.length > 0 && e.path !== (prefix.replace(/\/$/, '').split('/').pop() ?? ''));
+      .filter((e) => e.path.length > 0);
+
     return buildTree(entries);
   }
 

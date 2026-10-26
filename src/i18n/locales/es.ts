@@ -243,6 +243,8 @@ export const es = {
     'zip-insecure': 'El ZIP contiene rutas inseguras y se rechazó la carga (posible ataque de path traversal)',
     'parse-error': 'No se pudo analizar el archivo',
     'not-found-dir': 'El directorio no existe, no tienes permiso o no es un directorio. Revisa la ruta',
+    truncated:
+      'El repositorio es demasiado grande: GitHub solo devolvió parte del árbol de archivos (más de 100 000 entradas). Abre una subcarpeta concreta o cárgalo como ZIP',
     unsupportedLanguage: 'Este lenguaje aún no admite análisis',
   },
 } as const;

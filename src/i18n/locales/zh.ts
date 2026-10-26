@@ -254,6 +254,8 @@ export const zh = {
     'zip-insecure': 'ZIP 内含不安全的文件路径，已拒绝加载（疑似路径穿越攻击）',
     'parse-error': '文件解析失败',
     'not-found-dir': '目录不存在、无权限或不是目录，请检查路径',
+    truncated:
+      '仓库文件太多，GitHub 只返回了部分文件树（超出 10 万条上限）。建议打开具体子目录，或用 ZIP 方式加载',
     unsupportedLanguage: '该语言暂不支持解析',
   },
 } as const;

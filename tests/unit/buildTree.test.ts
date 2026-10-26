@@ -193,3 +193,15 @@ describe('flattenDirs（测试辅助）', () => {
     expect(flattenDirs(tree)).toEqual(['a', 'a/b']);
   });
 });
+
+describe('前导斜杠归一化（jsDelivr 兜底清单）', () => {
+  it('jsDelivr 的 /src/x.ts 不会造出空名目录', () => {
+    // jsDelivr ?structure=flat 返回的 name 一律带前导斜杠
+    const tree = buildTree([file('/README.md'), file('/src/index.ts'), file('/src/utils/a.ts')]);
+
+    // 根下不能出现 path 为空字符串的目录
+    expect(tree.some((n) => n.path === '')).toBe(false);
+    expect(flattenFiles(tree).sort()).toEqual(['README.md', 'src/index.ts', 'src/utils/a.ts']);
+    expect(flattenDirs(tree)).toEqual(['src', 'src/utils']);
+  });
+});

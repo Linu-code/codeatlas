@@ -243,6 +243,8 @@ export const zhTW = {
     'zip-insecure': 'ZIP 內含不安全的檔案路徑，已拒絕載入（疑似路徑穿越攻擊）',
     'parse-error': '檔案解析失敗',
     'not-found-dir': '目錄不存在、沒有權限或不是目錄，請檢查路徑',
+    truncated:
+      '倉庫檔案太多，GitHub 只回傳了部分檔案樹（超出 10 萬條上限）。建議開啟特定子目錄，或用 ZIP 方式載入',
     unsupportedLanguage: '此語言暫不支援解析',
   },
 } as const;

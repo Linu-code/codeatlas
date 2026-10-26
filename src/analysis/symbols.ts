@@ -95,7 +95,9 @@ export function extractFile(root: Parser.SyntaxNode, path: string, language: Lan
     for (const p of importPaths) imports.push(p);
 
     // ---------- 调用 ----------
-    if (handler.callNodeTypes.has(type)) {
+    // 导入表达式内部不算调用：require('x') / import('x') 是模块引用，
+    // 记进调用图会让 require 变成入度最高的"函数"，并把依赖关系读错。
+    if (handler.callNodeTypes.has(type) && !nowInImport) {
       const callee = handler.calleeName(node);
       if (callee) {
         calls.push({

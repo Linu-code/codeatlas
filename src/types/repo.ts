@@ -61,6 +61,7 @@ export type RepoErrorCode =
   | 'empty-zip'       // ZIP 无有效文件
   | 'zip-insecure'    // ZIP 内含路径穿越条目（安全拦截）
   | 'not-found-dir'   // 本地目录不存在 / 无权限 / 非目录
+  | 'truncated'       // 仓库文件树超出 GitHub 递归上限，只返回了部分
   | 'parse-error';    // 文件解析失败
 
 export class RepoError extends Error {

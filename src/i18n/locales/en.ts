@@ -251,6 +251,8 @@ export const en = {
     'zip-insecure': 'The ZIP contains unsafe paths and was rejected (possible path traversal)',
     'parse-error': 'Failed to parse file',
     'not-found-dir': 'Directory not found, inaccessible, or not a directory',
+    truncated:
+      'This repository is too large — GitHub returned only part of the file tree (over 100k entries). Open a specific subdirectory, or load it as a ZIP',
     unsupportedLanguage: 'This language is not supported yet',
   },
 } as const;

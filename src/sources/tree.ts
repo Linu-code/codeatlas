@@ -19,10 +19,16 @@
 
 import { FileNode } from '../types/repo';
 
-/** 去尾斜杠 + 去掉多余的 './' 前缀，保证同一目录/文件只有一种字符串表示 */
+/**
+ * 去尾斜杠 + 去掉多余的 './' 与前导 '/'，保证同一目录/文件只有一种字符串表示。
+ *
+ * 前导斜杠必须剥掉：jsDelivr 的 `?structure=flat` 清单返回的是 `/<绝对路径>`，
+ * 不剥离会造出一个 path 为空字符串的目录节点，整棵树多一层、文件名带斜杠、读取全 404。
+ */
 function normalizePath(path: string): string {
   let p = path.replace(/\\/g, '/');
   while (p.startsWith('./')) p = p.slice(2);
+  p = p.replace(/^\/+/, '');
   p = p.replace(/\/+$/, '');
   return p;
 }

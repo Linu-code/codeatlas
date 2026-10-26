@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### 修复（真实仓库泛用性测试暴露的问题）
+
+用 8 个真实 GitHub 仓库（express / flask / chalk / tsup / vuejs/core / gin / sindresorhus-is / octocat-Hello-World，共约 1400 个源文件）跑完整分析管线，定位并修掉 6 个会导致结果错误或功能失效的缺陷：
+
+- **CommonJS 依赖完全不被识别**（`src/analysis/langs/javascript.ts`）：`importNodes` / `importPaths` 原来只处理 ESM 的 `import_statement`，`require('./x')` 既不产生依赖边、又被当成普通函数调用。实测 express 的 `fileEdges` 为 **0**（65 个源文件的依赖图全空），循环依赖检测恒为空。现在 `require()` 与动态 `import()` 都计入依赖；`symbols.ts` 的调用提取增加 `!nowInImport` 守卫，「require 进调用图」的污染一并消除。修复后 express `fileEdges` 0 → **65**，并检出 2 个真实文件级循环。
+- **模块图对标准项目完全塌陷**（`src/analysis/moduleGraph.ts`）：`moduleOf()` 只取路径第一段，`src/api/client.ts` 与 `src/pages/Dashboard.tsx` 归为同一个 `src` 节点。实测 4 个标准结构仓库全部塌成 4 个节点，`from === to` 的边被丢弃（本项目的通用样例：45 条真实依赖只剩 1 条）。现在 `src/<sub>/...` 与 `packages/<pkg>/...` 会下钻一层。修复后 Vue monorepo 4 → **16 节点**、4 → **22 条边**（1266 条文件边不再被丢弃）。
+- **嵌套闭包被重复计入圈复杂度**（`src/analysis/metrics.ts`）：`measureFunction` 遍历函数体时没有在嵌套函数处剪枝，外层函数把内层所有分支也算进自己的复杂度，文件级总和更是「外层含内层 + 内层再算一遍」的双重累加。实测 Vue 的 `baseCreateRenderer` 被算成 **407**（实际由几十个内层渲染函数贡献）。现在遇到函数节点即停止下钻。修复后该文件最大值降到 **207**（`compileScript`），express 的排行榜也从「测试里的匿名回调」回到真实热点 `lib/response.js#send`。
+- **jsDelivr 兜底路径全不可用**（`src/sources/tree.ts` / `github.ts`）：jsDelivr 的 `?structure=flat` 清单返回带前导 `/` 的绝对路径，`normalizePath` 不剥离会造出 `path: ''` 的空名目录，整棵树多一层、文件名带斜杠、读取全部 404；且子目录过滤在剥斜杠前做，`subDir` 永远匹配不上。现已归一化并调整过滤顺序。
+- **超大树被静默截断**（`src/sources/github.ts`）：`git/trees?recursive=1` 返回的 `truncated` 字段原本被解构后丢弃，大仓库只加载前 10 万条却毫无提示，后续所有分析都基于残缺数据。新增错误码 `truncated` 与 10 语言提示，明确建议「打开具体子目录或用 ZIP 加载」。
+- **git 子模块被当成普通文件**（`src/sources/github.ts`）：`type: 'commit'`（mode 160000）的条目没有内容可读，点击必然 404。现于建树前按 blob/tree 过滤。
+
 ### 新增
 
 - **2.1 平台适配（代码层，打包仍待做）**

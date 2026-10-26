@@ -533,6 +533,12 @@ export function computeMetrics(
     let cognitive = 0;
 
     const walk = (node: Parser.SyntaxNode, depth: number) => {
+      // 嵌套函数是独立的度量单元，必须在此剪枝：
+      // 继续深入会把内层分支算进外层的圈复杂度，并把内层的嵌套权重也叠加到外层。
+      // 实测后果：Vue 的 baseCreateRenderer（内部定义了几十个 render 函数）被算成 407，
+      // 文件级总和也因为「外层含内层 + 内层自己再算一遍」而重复累加。
+      if (rules.functionNodes.has(node.type)) return;
+
       const isNesting = rules.nesting.has(node.type);
       const nextDepth = isNesting ? depth + 1 : depth;
 

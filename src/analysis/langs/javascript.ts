@@ -55,9 +55,25 @@ export const javascriptHandler: LangHandler = {
   },
 
   importPaths(node): string[] {
-    if (node.type !== 'import_statement') return [];
-    const src = node.namedChildren.find((c) => c.type === 'string');
-    return src ? [src.text.replace(/['"]/g, '')] : [];
+    // ESM：import x from './x'  /  import './x'
+    if (node.type === 'import_statement') {
+      const src = node.namedChildren.find((c) => c.type === 'string');
+      return src ? [src.text.replace(/['"]/g, '')] : [];
+    }
+
+    // CommonJS：require('./x')、require('./x').foo、const x = require('./x')
+    // 动态导入：await import('./x')
+    // 单行范围：`express`/`koa`/`webpack` 这类仓库只有 require，缺了这条依赖图直接为空。
+    if (node.type !== 'call_expression') return [];
+    const fn = node.childForFieldName('function');
+    if (!fn) return [];
+    const isRequire = fn.type === 'identifier' && fn.text === 'require';
+    const isDynamicImport = fn.type === 'import' || fn.text === 'import';
+    if (!isRequire && !isDynamicImport) return [];
+
+    const args = node.childForFieldName('arguments');
+    const first = args?.namedChildren.find((c: Parser.SyntaxNode) => c.type === 'string');
+    return first ? [first.text.replace(/['"]/g, '')] : [];
   },
 
   calleeName(node): string | null {
