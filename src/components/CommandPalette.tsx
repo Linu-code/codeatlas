@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { rankByFuzzy } from '../utils/fuzzy';
+import { platformizeShortcut } from '../utils/platform';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export type PaletteSection = 'command' | 'file' | 'symbol';
@@ -206,7 +207,7 @@ export default function CommandPalette({ open, mode, items, onClose }: Props) {
           className="shrink-0 border-t px-3 py-1 text-[10px]"
           style={{ borderColor: 'var(--c-border)', color: 'var(--c-text-2)' }}
         >
-          {t('analysis:paletteHint')}
+          {platformizeShortcut(t('analysis:paletteHint'))}
         </p>
       </div>
     </div>

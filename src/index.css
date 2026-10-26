@@ -131,7 +131,16 @@ body,
 body {
   background: var(--c-bg);
   color: var(--c-text);
-  font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  /* 跨平台字体栈：macOS(PingFang) / Windows(微软雅黑) / Linux(Noto CJK) 都能落到本地中文字体 */
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    'Noto Sans CJK SC',
+    sans-serif;
   font-size: 13px;
   overflow: hidden; /* VSCode 风格：面板内部各自滚动 */
 }
@@ -183,13 +192,31 @@ body {
  * 代码视图：行号槽 + 代码区（滚动同步由 JS 处理）
  * ============================================================ */
 .code-scroll {
-  font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  /* 等宽字体：先 ui-monospace（各平台系统等宽），再逐个平台兜底 */
+  font-family:
+    ui-monospace,
+    'SF Mono',
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    'Cascadia Mono',
+    'DejaVu Sans Mono',
+    monospace;
   font-size: 12.5px;
   line-height: 20px;
   tab-size: 2;
 }
 .code-gutter {
-  font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  /* 等宽字体：先 ui-monospace（各平台系统等宽），再逐个平台兜底 */
+  font-family:
+    ui-monospace,
+    'SF Mono',
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    'Cascadia Mono',
+    'DejaVu Sans Mono',
+    monospace;
   font-size: 12.5px;
   line-height: 20px;
   color: var(--c-text-2);
@@ -220,7 +247,15 @@ body {
   background: var(--c-bg-3);
   padding: 2px 6px;
   border-radius: 4px;
-  font-family: Consolas, 'Cascadia Mono', monospace;
+  font-family:
+    ui-monospace,
+    'SF Mono',
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    'Cascadia Mono',
+    'DejaVu Sans Mono',
+    monospace;
   font-size: 0.9em;
 }
 .md-body pre {

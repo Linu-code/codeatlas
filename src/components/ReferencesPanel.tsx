@@ -9,6 +9,7 @@
 
 import { useTranslation } from 'react-i18next';
 import type { SymbolEntry } from '../analysis/scopeGraph';
+import { platformizeShortcut } from '../utils/platform';
 
 interface Props {
   symbol: string | null;
@@ -52,7 +53,9 @@ export default function ReferencesPanel({ symbol, entry, indexed, onClose, onOpe
 
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3 text-[12px]">
         {!symbol && (
-          <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:pickSymbolHint')}</p>
+          <p style={{ color: 'var(--c-text-2)' }}>
+            {platformizeShortcut(t('analysis:pickSymbolHint'))}
+          </p>
         )}
 
         {symbol && !indexed && (

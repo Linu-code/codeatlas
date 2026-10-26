@@ -6,6 +6,13 @@
 
 ### 新增
 
+- **2.1 平台适配（代码层，打包仍待做）**
+  - **快捷键提示平台化**：`src/utils/platform.ts` 新增 `isMac()` / `platformizeShortcut()`；命令面板与引用面板的「Ctrl+K / Ctrl+单击」在 macOS 上显示为「⌘+K / ⌘+单击」。德语 `Strg` 也一并覆盖。
+  - **修饰键按平台判定**：新增 `isModPressed()`，macOS 只认 `⌘`、Windows/Linux 只认 `Ctrl`（原来的 `ctrlKey || metaKey` 会让 macOS 的 Ctrl+K、Windows 的 Win 键误触发快捷键）；命令面板 / 符号搜索 / 全局搜索 / 代码区 Ctrl+单击跳转统一改用它。
+  - **跨平台字体栈**：等宽字体改为 `ui-monospace → SF Mono → Menlo → Consolas → Cascadia Mono → DejaVu Sans Mono`（原来首位是 Consolas，macOS 会掉到 Courier New）；正文补充 `PingFang SC` / `Hiragino Sans GB` / `Noto Sans CJK SC`，Linux 中文字体不再回退到默认衬线。
+  - 审计结论：`LocalDirSource` 路径拼接已是 POSIX 风格、Rust 侧无 `#[cfg(windows)]`、主题跟随与拖拽事件均跨平台——**剩余工作只有打包与 CI 矩阵**（`.dmg` / `.deb` / `.AppImage` + 三平台矩阵），见 `docs/PLAN-2.0.md` §4。
+  - 单测 +3（`tests/unit/platform.test.ts`）。
+
 - **界面语言扩展到 10 种**：新增 **繁體中文 / 한국어 / Español / Français / Deutsch / Português / Русский**（原有 中 / 英 / 日），共 10 种，全部 LTR。
   - 每个语言包 282 个键、四个命名空间（common / viewer / analysis / errors），共 **2,820 条**用户可见文案；
   - `Language` 联合类型 + `LANGUAGES` 数组 + `RESOURCES: Record<Language, …>` 三重约束，新增语言漏配会被 TypeScript 拦下；

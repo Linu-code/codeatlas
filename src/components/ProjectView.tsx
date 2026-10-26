@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { onCommand, type AppCommand } from '../workspace/commands';
+import { isModPressed } from '../utils/platform';
 import FileTree from './FileTree';
 import EditorTabs from './EditorTabs';
 import CodeView from './CodeView';
@@ -206,17 +207,17 @@ export default function ProjectView({
         if (sel) void handleSymbol(sel);
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+      if (isModPressed(e) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         if (fs) setPanel('search');
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'k') {
+      if (isModPressed(e) && !e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         if (fs) setPalette({ open: true, mode: 'all' });
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 't') {
+      if (isModPressed(e) && !e.shiftKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
         if (!fs) return;
         setPalette({ open: true, mode: 'symbol' });

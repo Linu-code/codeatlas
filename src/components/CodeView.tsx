@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Prism, ensurePrismLanguage, hasPrismLanguage } from '../utils/prismLoader';
+import { isModPressed } from '../utils/platform';
 
 const LINE_HEIGHT = 20; // 与 index.css 的 .code-scroll 保持一致
 
@@ -98,7 +99,7 @@ export default function CodeView({ code, language, highlightLine, onSymbolClick,
   const handleClick = (e: React.MouseEvent<HTMLElement>) => {
     if (!onSymbolClick || !preRef.current) return;
     // 仅 Ctrl/Cmd + 点击触发"转到定义"（与 VSCode 一致的交互，避免普通点击误跳转）
-    if (!e.ctrlKey && !e.metaKey) return;
+    if (!isModPressed(e)) return;
     const target = e.target as HTMLElement;
     // 优先取用户选中的文本，否则取点击 token 的文本内容
     const token =
