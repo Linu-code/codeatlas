@@ -106,12 +106,3 @@ export function saveWorkspace(saved: SavedWorkspace): void {
     // 隐私模式 / 配额超限：持久化失败不应影响正常使用
   }
 }
-
-export function clearWorkspace(): void {
-  try {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.removeItem(KEY);
-  } catch {
-    // ignore
-  }
-}

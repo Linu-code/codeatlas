@@ -43,30 +43,11 @@ export async function readFileBytes(path: string): Promise<Uint8Array | null> {
 }
 
 /**
- * N5①：递归列出本地目录（Rust read_dir）。
- * 返回相对 POSIX 路径 + is_dir + size；非 Tauri 环境返回 null（调用方降级提示）。
- */
-export async function listLocalDir(
-  path: string,
-): Promise<{ path: string; is_dir: boolean; size: number }[] | null> {
-  return invokeSafe<{ path: string; is_dir: boolean; size: number }[]>('read_dir', { path });
-}
-
-/** N5①：直接读 UTF-8 文本（避免 base64 编解码开销）；非 Tauri 环境返回 null */
-export async function readLocalText(path: string): Promise<string | null> {
-  return invokeSafe<string>('read_text_file', { path });
-}
-
-/**
  * N5①：弹原生目录选择对话框（rfd）。
  * 用户取消 / 非 Tauri 环境返回 null。
  */
 export async function selectLocalDir(): Promise<string | null> {
   return invokeSafe<string>('select_dir');
-}
-
-export interface DropEventPayload {
-  paths: string[];
 }
 
 /**

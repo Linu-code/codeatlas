@@ -151,11 +151,6 @@ export function putCachedAnalysis(
 
 // ---------- 维护操作 ----------
 
-/** 清空指定仓库的分析缓存（刷新按钮用） */
-export async function clearRepoAnalysisCache(repoKeyStr: string): Promise<void> {
-  await deleteByPrefix(repoKeyStr);
-}
-
 /** 清空全部分析缓存（设置页"清除缓存"用） */
 export async function clearAllAnalysisCache(): Promise<void> {
   await tx(STORE_ANALYSIS, 'readwrite', (s) => s.clear() as IDBRequest<undefined>);
@@ -165,25 +160,4 @@ export async function clearAllAnalysisCache(): Promise<void> {
 export async function analysisCacheStats(): Promise<number> {
   const n = await tx<number>(STORE_ANALYSIS, 'readonly', (s) => s.count() as IDBRequest<number>);
   return n ?? 0;
-}
-
-async function deleteByPrefix(prefix: string): Promise<void> {
-  const db = await openDb().catch(() => null);
-  if (!db) return;
-  await new Promise<void>((resolve) => {
-    const t = db.transaction(STORE_ANALYSIS, 'readwrite');
-    const s = t.objectStore(STORE_ANALYSIS);
-    const req = s.openKeyCursor();
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (!cursor) {
-        resolve();
-        return;
-      }
-      const k = String(cursor.key);
-      if (k === prefix || k.startsWith(prefix)) s.delete(cursor.key);
-      cursor.continue();
-    };
-    req.onerror = () => resolve();
-  });
 }

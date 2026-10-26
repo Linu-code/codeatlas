@@ -139,7 +139,6 @@ let initPromise: Promise<ParserModule> | null = null;
 const pool = new Map<LangId, PoolEntry>();
 /** 加载失败的语言（避免反复重试） */
 const unsupported = new Set<LangId>();
-let runtime: ParserModule | null = null;
 /** Language 构造器（init 后挂上，供 getParser 加载语法包） */
 let langCtor: LanguageModule | null = null;
 
@@ -171,7 +170,6 @@ export async function initParsers(): Promise<ParserModule> {
       if (!lang) throw new Error('web-tree-sitter: Language export not found');
       // 0.25 中 init 仅负责加载运行时 wasm（locateFile 指向 tree-sitter.wasm），返回 void
       await ctor.init({ locateFile: () => env.runtimeWasm() });
-      runtime = ctor;
       langCtor = lang;
       return ctor;
     })();
@@ -199,15 +197,6 @@ export async function getParser(lang: LangId): Promise<ParserInstance | null> {
   }
 }
 
-export function isRuntimeLoaded(): boolean {
-  return runtime !== null;
-}
-
-/** 语言是否可用（用于 UI 提前提示） */
-export async function isLanguageSupported(lang: LangId): Promise<boolean> {
-  return (await getParser(lang)) !== null;
-}
-
 /** 解析源码；parser 不可用时返回 null */
 export async function parseCode(code: string, lang: LangId): Promise<ParsedTree | null> {
   const parser = await getParser(lang);
@@ -219,15 +208,4 @@ export async function parseCode(code: string, lang: LangId): Promise<ParsedTree 
   } catch {
     return null;
   }
-}
-/** 释放全部解析器（切换项目时调用） */
-export function disposeParsers(): void {
-  for (const entry of pool.values()) {
-    try {
-      entry.parser.delete();
-    } catch {
-      // 忽略释放异常
-    }
-  }
-  pool.clear();
 }

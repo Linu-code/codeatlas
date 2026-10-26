@@ -172,12 +172,6 @@ async fn open_zip_window(
     Ok(())
 }
 
-/// 关闭当前窗口（新窗口内提供"关闭"入口时使用）
-#[tauri::command]
-fn close_window(window: tauri::Window) -> Result<(), String> {
-    window.destroy().map_err(|e| format!("close failed: {e}"))
-}
-
 /// 配置文件路径：~/.codeatlas/config.json（跨平台取家目录）
 fn config_path() -> Result<PathBuf, String> {
     let home = std::env::var("USERPROFILE")
@@ -230,7 +224,6 @@ pub fn run() {
             read_dir,
             select_dir,
             open_zip_window,
-            close_window,
             load_config,
             save_config
         ])

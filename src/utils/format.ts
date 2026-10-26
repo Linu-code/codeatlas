@@ -27,13 +27,3 @@ export function formatSize(bytes: number, lang: string): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
-
-export function formatDate(date: Date | number, lang: string): string {
-  return new Intl.DateTimeFormat(localeOf(lang), {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}

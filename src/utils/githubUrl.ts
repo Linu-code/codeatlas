@@ -7,8 +7,6 @@
  *   3. 其他任意文本     → GitHub Search API 搜索
  */
 
-import { RepoError } from '../types/repo';
-
 /** 单段：不含 / 空格 ? # 的字符 */
 const SEG = '[^/\\s#?]+';
 
@@ -72,13 +70,4 @@ export function resolveTopBarInput(raw: string): ResolvedInput | null {
   }
   // 其余一律视为搜索关键词
   return { kind: 'search', query: input };
-}
-
-/** 供数据层使用的便捷转换：非法 URL 统一转成 RepoError(invalid-input) */
-export function parsedOrThrow(url: string): ParsedGitHubUrl {
-  try {
-    return parseGitHubUrl(url);
-  } catch {
-    throw new RepoError('invalid-input', `invalid github url: ${url}`);
-  }
 }

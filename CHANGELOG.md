@@ -4,6 +4,27 @@
 
 ## [Unreleased]
 
+### 清理（死代码与冗余）
+
+对全仓做了一次可达性 + 引用计数审计（106 个源文件 / 313 个导出 / 232 个 i18n 叶子键），删掉从未接线的部分：
+
+- **11 个死导出**（全仓零引用，含本文件零使用）：
+  - `analysis/analysisCache.ts`：`clearRepoAnalysisCache` 与它专用的 `deleteByPrefix`
+  - `analysis/parser.ts`：`isRuntimeLoaded` / `isLanguageSupported` / `disposeParsers`，以及只被 `isRuntimeLoaded` 读的模块级 `runtime`
+  - `utils/format.ts`：`formatDate`
+  - `utils/githubUrl.ts`：`parsedOrThrow`（连带移除已无用的 `RepoError` 导入）
+  - `utils/markdown.ts`：`renderMarkdown` + `RenderOptions`（签名收 `options` 却完全忽略，属误导性 API）
+  - `utils/tauri.ts`：`listLocalDir` / `readLocalText` / `DropEventPayload`（`LocalDirSource` 直接调 `invokeSafe`，这两个是同功能重复封装）
+  - `workspace/persistence.ts`：`clearWorkspace`
+- **18 个死 i18n 键 × 10 语言 = 180 行**：`appName` / `tagline` / `cancel` / `clear` / `stars` / `viewOnGitHub` / `closeWindow` / `emptyFile` / `copiedPath` / `copyPath` / `searchResults` / `localZip` / `linePrefix` / `openedInNewWindow` / `currentWindow` / `directories` / `purposeLabel` / `jumpedTo`。
+  - 保留 `errors:unsupportedLanguage`——语法包缺失时本应提示用户，属「该接未接」而非废弃。
+- **2 个死 CSS 变量**：`--c-primary-hover`（4 套主题各定义一次）与 `--c-accent`（2 套），全仓无 `var()` 引用。
+- **Rust 死命令**：`close_window`（前端从未调用），连同 `generate_handler!` 里的注册一并删除。
+
+**审计未发现问题的部分**：无注释掉的代码块、无 TODO/FIXME 遗留、无孤儿资源（screenshots / assets 全部被引用）、无未使用依赖（`autoprefixer`/`postcss` 在 `postcss.config.js` 里以裸 key 引用，`@types/*` 与 `@tauri-apps/cli` 属工具链必需）、Prism 的 18 个 token 类由运行时生成不可删、`docs/index.html` 由 GitHub Pages 工作流部署。
+
+**有意保留**：另有 66 个导出「仅本文件使用」，多为接口/类型契约（`GraphNode`、`ReportModel` 等）。去掉 `export` 不减少产物体积（tree-shaking 已处理），却会削弱模块边界表达，判定为不值得改。
+
 ### 修复（真实仓库泛用性测试暴露的问题）
 
 用 8 个真实 GitHub 仓库（express / flask / chalk / tsup / vuejs/core / gin / sindresorhus-is / octocat-Hello-World，共约 1400 个源文件）跑完整分析管线，定位并修掉 6 个会导致结果错误或功能失效的缺陷：

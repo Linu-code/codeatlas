@@ -40,20 +40,6 @@ export function resolveRelativeSrc(src: string, baseUrl: string | null): string 
   return normalizedBase + rel;
 }
 
-export interface RenderOptions {
-  /** 资源绝对前缀，如 https://raw.githubusercontent.com/o/r/main/ */
-  baseUrl?: string | null;
-  /** 自定义资源解析（ZIP 场景：返回 blob URL）；返回 null 表示回退到 baseUrl 规则 */
-  resolveAsset?: (src: string) => string | null;
-  /** 相对链接跳转前缀（GitHub 网页视图） */
-  linkBase?: string | null;
-}
-
-/** 渲染 Markdown 为 HTML 字符串（不做 DOM 改写，DOM 改写见 rewriteRenderedDom） */
-export function renderMarkdown(text: string, _options: RenderOptions = {}): string {
-  return md.render(text);
-}
-
 /** 派生 GitHub 资源前缀 */
 export function githubRawBase(owner: string, repo: string, branch: string): string {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
