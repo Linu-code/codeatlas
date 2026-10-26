@@ -37,6 +37,20 @@ const SECTIONS: { id: Section; labelKey: string }[] = [
 
 const BUDGETS = [2000, 8000, 32000, 64000];
 
+/** 语言 → 文案键（新增语言时此处会被 Record<Language,…> 强制补齐） */
+const LANG_LABEL_KEY: Record<Language, string> = {
+  zh: 'langZh',
+  'zh-TW': 'langZhTw',
+  en: 'langEn',
+  ja: 'langJa',
+  ko: 'langKo',
+  es: 'langEs',
+  fr: 'langFr',
+  de: 'langDe',
+  pt: 'langPt',
+  ru: 'langRu',
+};
+
 const chip =
   'rounded border px-2.5 py-1 text-xs transition-colors disabled:opacity-40';
 
@@ -156,7 +170,7 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
                 </div>
 
                 <h3 className="mb-2 text-[13px] font-semibold">{t('language')}</h3>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {LANGUAGES.map((lang) => (
                     <button
                       key={lang}
@@ -166,7 +180,7 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
                       className={chip}
                       style={activeStyled(config.language === lang)}
                     >
-                      {t(`lang${lang === 'zh' ? 'Zh' : lang === 'en' ? 'En' : 'Ja'}`)}
+                      {t(LANG_LABEL_KEY[lang])}
                     </button>
                   ))}
                 </div>

@@ -27,7 +27,7 @@ cargo --version      # 需要 Rust 1.77+（MSVC 工具链）
 ## 代码约定
 
 - **分析层（`src/analysis/`）必须保持纯函数**：不依赖 React、不访问 DOM、不直接发网络请求。输入输出都是普通数据结构，这样才能被 Vitest 直接覆盖。
-- **所有面向用户的字符串必须进 i18n**：新增文案请同时更新 `src/i18n/locales/{zh,en,ja}.ts` 三个文件——`tests/unit/i18n.test.ts` 会强制校验三语言键结构一致，漏一个就红。
+- **所有面向用户的字符串必须进 i18n**：新增文案请同时更新 `src/i18n/locales/*.ts` 的**全部 10 个语言文件**（zh / zh-TW / en / ja / ko / es / fr / de / pt / ru）——`tests/unit/i18n.test.ts` 会强制校验键结构、插值占位符与空字符串，漏一个就红。
 - **间距用逻辑属性**：写 `ms-*` / `me-*` / `ps-*` / `pe-*`，不要写 `ml-*` / `mr-*`，以保持 RTL 能力。
 - **性能敏感处的约定**：重依赖（JSZip、Mermaid、Prism 语言包、tree-sitter 运行时）必须动态 `import()`，避免拖累首屏（目标：冷启动 < 2 秒）。
 - 关键算法请写清原理注释（例如"为什么这里不能按行切分高亮 HTML"），不要只描述代码在做什么。
@@ -96,7 +96,7 @@ main 上打 annotated tag（SemVer）→ push tag
 ## PR 检查清单
 
 - [ ] `npm test` 全绿，新增逻辑有对应单测
-- [ ] 三语言文案同步更新
+- [ ] 10 个语言文件的文案同步更新
 - [ ] 未引入 AI 调用 / 新域名 / 遥测
 - [ ] 重依赖仍为动态加载
 - [ ] 必要时更新 README 与 `docs/PLAN.md`

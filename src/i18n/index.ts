@@ -9,28 +9,64 @@
  * 同时负责 <html lang> 与 <html dir> 的同步，为后续阿拉伯语/希伯来语接入预留 RTL 能力。
  */
 
-import i18next from 'i18next';
+import i18next, { type ResourceLanguage } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import type { Language } from '../types/config';
+import { de } from './locales/de';
 import { en } from './locales/en';
+import { es } from './locales/es';
+import { fr } from './locales/fr';
 import { ja } from './locales/ja';
+import { ko } from './locales/ko';
+import { pt } from './locales/pt';
+import { ru } from './locales/ru';
 import { zh } from './locales/zh';
+import { zhTW } from './locales/zh-TW';
 
 export const NAMESPACES = ['common', 'viewer', 'analysis', 'errors'] as const;
-export const LANGUAGES: Language[] = ['zh', 'en', 'ja'];
 
-/** 语言标记为 RTL 的列表（当前三语言均 LTR，预留扩展） */
+/** 10 种界面语言（顺序即设置页的展示顺序） */
+export const LANGUAGES: Language[] = [
+  'zh',
+  'zh-TW',
+  'en',
+  'ja',
+  'ko',
+  'es',
+  'fr',
+  'de',
+  'pt',
+  'ru',
+];
+
+/** 语言标记为 RTL 的列表（当前 10 种语言均 LTR，预留扩展） */
 const RTL_LANGS = new Set(['ar', 'he', 'fa', 'ur']);
 
 const LANG_STORAGE_KEY = 'codeatlas.language';
 
-/** 检测系统语言并映射到支持列表 */
+/** 检测系统语言并映射到支持列表（按语言前缀降级匹配） */
 export function detectSystemLanguage(): Language {
   const nav = typeof navigator !== 'undefined' ? navigator.language : 'en';
   const lower = nav.toLowerCase();
+
+  // 繁体中文需要先于简体判断（zh-TW / zh-HK / zh-Hant）
+  if (lower === 'zh-tw' || lower === 'zh-hk' || lower === 'zh-mo' || lower.includes('hant')) {
+    return 'zh-TW';
+  }
   if (lower.startsWith('zh')) return 'zh';
-  if (lower.startsWith('ja')) return 'ja';
-  return 'en';
+
+  const prefix = lower.split('-')[0];
+  const byPrefix: Record<string, Language> = {
+    en: 'en',
+    ja: 'ja',
+    ko: 'ko',
+    es: 'es',
+    fr: 'fr',
+    de: 'de',
+    pt: 'pt',
+    ru: 'ru',
+  };
+  return byPrefix[prefix] ?? 'en';
 }
 
 /** 读取已保存语言（无则返回 null，表示"首次启动"） */
@@ -51,15 +87,30 @@ export function syncDocumentLanguage(lang: string): void {
   document.documentElement.dir = RTL_LANGS.has(lang.split('-')[0]) ? 'rtl' : 'ltr';
 }
 
+/** 语言包本身就是「命名空间 → 文案」的结构，直接交给 i18next */
+function bundle(locale: object): ResourceLanguage {
+  return locale as ResourceLanguage;
+}
+
+/** Record<Language, …> 保证新增语言时漏配资源会被 TypeScript 拦住 */
+const RESOURCES: Record<Language, ResourceLanguage> = {
+  zh: bundle(zh),
+  'zh-TW': bundle(zhTW),
+  en: bundle(en),
+  ja: bundle(ja),
+  ko: bundle(ko),
+  es: bundle(es),
+  fr: bundle(fr),
+  de: bundle(de),
+  pt: bundle(pt),
+  ru: bundle(ru),
+};
+
 export async function initI18n(): Promise<typeof i18next> {
   const initial = readSavedLanguage() ?? detectSystemLanguage();
 
   await i18next.use(initReactI18next).init({
-    resources: {
-      zh: { common: zh.common, viewer: zh.viewer, analysis: zh.analysis, errors: zh.errors },
-      en: { common: en.common, viewer: en.viewer, analysis: en.analysis, errors: en.errors },
-      ja: { common: ja.common, viewer: ja.viewer, analysis: ja.analysis, errors: ja.errors },
-    },
+    resources: RESOURCES,
     lng: initial,
     fallbackLng: 'en',
     defaultNS: 'common',

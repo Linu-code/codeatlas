@@ -6,6 +6,14 @@
 
 ### 新增
 
+- **界面语言扩展到 10 种**：新增 **繁體中文 / 한국어 / Español / Français / Deutsch / Português / Русский**（原有 中 / 英 / 日），共 10 种，全部 LTR。
+  - 每个语言包 282 个键、四个命名空间（common / viewer / analysis / errors），共 **2,820 条**用户可见文案；
+  - `Language` 联合类型 + `LANGUAGES` 数组 + `RESOURCES: Record<Language, …>` 三重约束，新增语言漏配会被 TypeScript 拦下；
+  - 设置页语言区改为可换行按钮组（10 项），每项显示**母语名称**；
+  - `detectSystemLanguage` 支持按前缀映射（zh-TW / zh-HK / zh-Hant 优先匹配繁体，其余按 `es-ES` → `es` 降级）；
+  - **修复**：`normalizeConfig` 的语言白名单原先硬编码为 `zh/en/ja`，保存其他语言会在下次启动被重置；现取自 `LANGUAGES` 单一来源；
+  - 单测 `i18n.test.ts` 升级为 10 语言全量校验，并新增**插值占位符一致性**断言（防止 `{{count}}` 被翻译掉）；E2E 新增 10 语言抽样用例。
+
 - **AST 解析迁入 Web Worker**：主线程只负责读文件 / 查增量缓存 / 汇总，tree-sitter 解析与度量在 `src/workers/analysis.worker.ts` 中执行。按 **200 文件**分块读取、**25 文件**分批投递，内存峰值可控且进度更新更细；结果按路径排序，派生分析（调用图 / 阅读路径 / 模块图）输出更稳定。Worker 创建失败 / 运行时报错 / 120s 超时都会**自动回退主线程**，功能不降级（Worker 只加速）。配套：`vite.config.ts` 设 `worker.format = 'es'`（worker 内有动态 import）；grammar 目录由主线程换算成**绝对 URL** 下发（`base: './'` 时相对路径会相对 worker 脚本解析而 404）。E2E 新增 `analysis-worker.spec.ts`，断言 Worker 确实被创建且完成解析。
 - **工作区持久化**：重启 / 刷新后自动恢复上次打开的 **GitHub 与本地目录**项目（ZIP 是内存快照，无法还原，不持久化）；拖入 ZIP/目录打开的多窗口既不恢复也不写入，避免多窗口互相覆盖。存储于 `localStorage`（键 `codeatlas.workspace.v1`），读取前做结构校验，损坏时静默忽略。单测 +5、E2E +1（刷新后自动恢复）。
 - **TypeScript 类型声明提取**：新增 `interface` / `type` 别名 / `enum` 三类符号（此前只认 `class`），`abstract class` 也归入 `class`。符号种类扩展后，大纲图标（I / T / E）、上下文包 `(interface|type|enum)` 标签同步；C/Go/Rust 的 struct/interface 仍按 `class` 收录，不影响既有类图与度量语义。单测 +3（`tests/unit/langs.test.ts`）。

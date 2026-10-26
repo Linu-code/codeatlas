@@ -11,7 +11,14 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { buildFixtureZip, loadFixtureZip, openMainMenu, setLanguage, setTheme } from './helpers';
+import {
+  buildFixtureZip,
+  loadFixtureZip,
+  openMainMenu,
+  openMenu,
+  setLanguage,
+  setTheme,
+} from './helpers';
 
 // 本文件默认在"系统深色"下运行，让 atlas 主题解析出确定的 atlas-dark；
 // 需要验证浅色分支的用例会自行用 colorScheme: 'light' 开独立上下文。
@@ -51,6 +58,29 @@ test('语言切换：中文 → English → 日本語，文案实时变化且刷
   await openMainMenu(page);
   await expect(page.getByRole('menuitem', { name: 'コードメトリクス' })).toBeVisible();
   await page.keyboard.press('Escape');
+});
+
+test('10 种语言全部可选：<html lang> 与菜单文案同步', async ({ page }) => {
+  await loadFixtureZip(page, zipPath);
+
+  // 抽样断言「代码度量」这一条在各语言下的文案，确保语言包真的被加载
+  const samples: { lang: string; label: string }[] = [
+    { lang: 'zh-TW', label: '程式碼度量' },
+    { lang: 'ko', label: '코드 메트릭' },
+    { lang: 'es', label: 'Métricas de código' },
+    { lang: 'fr', label: 'Métriques de code' },
+    { lang: 'de', label: 'Code-Metriken' },
+    { lang: 'pt', label: 'Métricas de código' },
+    { lang: 'ru', label: 'Метрики кода' },
+  ];
+
+  for (const sample of samples) {
+    await setLanguage(page, sample.lang);
+    await expect(page.locator('html')).toHaveAttribute('lang', sample.lang);
+    await openMenu(page, 'analysis');
+    await expect(page.getByRole('menuitem', { name: sample.label })).toBeVisible();
+    await page.keyboard.press('Escape');
+  }
 });
 
 test('主题：Atlas Blue 与普通深色有明显不同的 data-theme', async ({ page }) => {

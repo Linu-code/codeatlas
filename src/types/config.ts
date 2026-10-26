@@ -4,7 +4,18 @@
  * 浏览器 dev 模式下降级为 localStorage。
  */
 
-export type Language = 'zh' | 'en' | 'ja';
+/** 支持的界面语言（10 种，均 LTR；RTL 预留在 i18n/syncDocumentLanguage） */
+export type Language =
+  | 'zh'
+  | 'zh-TW'
+  | 'en'
+  | 'ja'
+  | 'ko'
+  | 'es'
+  | 'fr'
+  | 'de'
+  | 'pt'
+  | 'ru';
 export type ThemeId = 'light' | 'dark' | 'system' | 'atlas';
 
 export interface AppConfig {

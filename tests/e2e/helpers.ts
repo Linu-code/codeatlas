@@ -221,8 +221,8 @@ export async function setTheme(page: Page, theme: string): Promise<void> {
   await closeSettings(page);
 }
 
-/** 在设置页切换语言 */
-export async function setLanguage(page: Page, lang: 'zh' | 'en' | 'ja'): Promise<void> {
+/** 在设置页切换语言（lang 为 Language 的取值，如 'zh-TW'） */
+export async function setLanguage(page: Page, lang: string): Promise<void> {
   await openSettings(page);
   await page.locator(`[data-language-option="${lang}"]`).click();
   await closeSettings(page);

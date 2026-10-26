@@ -144,12 +144,12 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 | 桌面框架 | **Tauri 2**（Rust + 系统 WebView2） | 体积约 3 MB，冷启动快，不用 Electron |
 | 前端 | React 18 + TypeScript + Vite + Tailwind CSS | 类型安全；分析层全为纯函数便于单测 |
 | AST 解析 | **web-tree-sitter 0.25** + tree-sitter-wasms（WASM） | 浏览器内真实语法树，覆盖 12 种主流语言 |
-| i18n | i18next + react-i18next | 命名空间组织，中/英/日，RTL 已预留 |
+| i18n | i18next + react-i18next | 命名空间组织，**10 种语言**（中/繁中/英/日/韩/西/法/德/葡/俄），RTL 已预留 |
 | 代码高亮 | Prism（语言包按需动态加载） | 首屏只带 4 个核心语法，其余用时再拉 |
 | 图表 | Mermaid（动态加载） | 调用图渲染 + SVG/PNG 导出 |
 | 本地缓存 | IndexedDB（手写薄封装） | 二次打开秒开；断网回退旧缓存；**分析结果增量复用（N4）** |
 | 并发 | Web Worker（AST 解析 / 全局搜索） | 主线程只做 I/O 与渲染；解析按 200 文件分块、25 文件分批投递，可回退主线程 |
-| 测试 | Vitest（290 个单测）+ Playwright（33 个 E2E 用例，在线场景用本地 mock 驱动，无需真实联网） | 分析层纯函数全覆盖 |
+| 测试 | Vitest（291 个单测）+ Playwright（34 个 E2E 用例，在线场景用本地 mock 驱动，无需真实联网） | 分析层纯函数全覆盖 |
 
 > **版本锁定说明**：`web-tree-sitter` 必须与语法包 ABI 匹配。项目锁定 `web-tree-sitter@0.25.10` + `tree-sitter-wasms@0.1.13`（0.1.13 由 tree-sitter-cli 0.20.8 构建，ABI 13；0.25.x 是兼容下限）。**0.26+** 运行时改用新版 dylink 段，加载旧 ABI 语法包会报 `getDylinkMetadata` 失败（issue tree-sitter#5171），故切勿升到 0.26+（已通过 Dependabot 忽略）。
 >
@@ -197,7 +197,7 @@ codeatlas/
 │   ├── workspace/         # 多项目工作区 store（项目列表 / 激活 / 打开 / 关闭）
 │   ├── utils/             # 通用工具：hash.ts（FNV-1a 内容指纹）等
 │   ├── workers/           # Web Worker：AST 解析（analysis）/ 全局正则搜索（search）
-│   ├── i18n/              # 中 / 英 / 日（common / viewer / analysis / errors）
+│   ├── i18n/              # 10 种语言（common / viewer / analysis / errors）
 │   └── theme/             # 四主题（light / dark / system / Atlas Blue）
 ├── src-tauri/             # Rust 核心：多窗口、读 ZIP 字节、配置读写
 ├── tests/unit/            # Vitest 单测
@@ -225,8 +225,8 @@ Atlas Blue 色板：主色 `#4A6CF7`、强调色 `#7C9EFF`、深色底 `#1B1D23`
 ```bash
 npm install          # 安装依赖（会自动把 tree-sitter wasm 复制到 public/grammars）
 npm run dev          # 浏览器开发模式
-npm test             # 单元测试（290 个）
-npm run e2e          # E2E（Playwright，33 个用例，含截图生成；在线场景用本地 mock 驱动）
+npm test             # 单元测试（291 个）
+npm run e2e          # E2E（Playwright，34 个用例，含截图生成；在线场景用本地 mock 驱动）
 npm run build        # 生产构建
 npm run build:exe    # 打包 exe（自动注入 MSVC 环境，产物复制到仓库根目录）
 npm run check:tree-sitter   # tree-sitter 运行时与语法包兼容性自检

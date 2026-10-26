@@ -17,7 +17,7 @@ Closes #
 ## 自检清单
 
 - [ ] `npm test` 全绿；新增逻辑带单测
-- [ ] 三语言文案同步更新（`src/i18n/locales/{zh,en,ja}.ts`）
+- [ ] 10 个语言文件的文案同步更新（`src/i18n/locales/*.ts`）
 - [ ] 未引入在线 AI/LLM 调用、新增外部网络域名或遥测（本地 Ollama 为规划中例外，见 CONTRIBUTING 红线 1）
 - [ ] 新增重依赖（Zip/图表/语法包等）仍为动态 `import()`
 - [ ] 涉及 UI 改动时已运行 `npm run e2e`，并在必要时更新截图
