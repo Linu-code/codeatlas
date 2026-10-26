@@ -214,17 +214,17 @@ export async function closeSettings(page: Page): Promise<void> {
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
 }
 
-/** 在设置页切换主题 */
+/** 在设置页切换主题（下拉框） */
 export async function setTheme(page: Page, theme: string): Promise<void> {
   await openSettings(page);
-  await page.locator(`[data-theme-option="${theme}"]`).click();
+  await page.locator('[data-theme-select]').selectOption(theme);
   await closeSettings(page);
 }
 
-/** 在设置页切换语言（lang 为 Language 的取值，如 'zh-TW'） */
+/** 在设置页切换语言（下拉框；lang 为 Language 的取值，如 'zh-TW'） */
 export async function setLanguage(page: Page, lang: string): Promise<void> {
   await openSettings(page);
-  await page.locator(`[data-language-option="${lang}"]`).click();
+  await page.locator('[data-language-select]').selectOption(lang);
   await closeSettings(page);
 }
 

@@ -2,8 +2,7 @@
  * SettingsDialog —— 设置页
  *
  * 结构：左侧分类（外观 / 分析 / 数据 / 高级）+ 右侧内容。
- * 目标：默认只看到常用项，低频/风险项（jsDelivr 兜底）收进「高级」，
- * Token 与缓存这类"数据"操作集中在一处。
+ * 交互约定：**同一设置项有多个候选项时用下拉框**，不平铺按钮——选项一多就变成一墙色块。
  *
  * 生效方式：主题 / 语言 / token 预算 / jsDelivr 均即时生效并持久化；
  * 只有 GitHub Token 需要点「保存」（避免每敲一个字符就写一次存储）。
@@ -35,8 +34,6 @@ const SECTIONS: { id: Section; labelKey: string }[] = [
   { id: 'advanced', labelKey: 'navAdvanced' },
 ];
 
-const BUDGETS = [2000, 8000, 32000, 64000];
-
 /** 语言 → 文案键（新增语言时此处会被 Record<Language,…> 强制补齐） */
 const LANG_LABEL_KEY: Record<Language, string> = {
   zh: 'langZh',
@@ -51,8 +48,23 @@ const LANG_LABEL_KEY: Record<Language, string> = {
   ru: 'langRu',
 };
 
-const chip =
-  'rounded border px-2.5 py-1 text-xs transition-colors disabled:opacity-40';
+const fieldStyle = {
+  background: 'var(--c-bg)',
+  borderColor: 'var(--c-border)',
+  color: 'var(--c-text)',
+};
+
+const selectClass = 'h-8 w-[184px] rounded border px-2 text-xs';
+
+/** 一行设置：左侧标签，右侧控件 */
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-4">
+      <span style={{ color: 'var(--c-text-2)' }}>{label}</span>
+      {children}
+    </div>
+  );
+}
 
 export default function SettingsDialog({ open, onClose, config, onConfigChange }: Props) {
   const { t, i18n } = useTranslation(['common']);
@@ -104,12 +116,6 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
 
   if (!open) return null;
 
-  const activeStyled = (active: boolean) => ({
-    borderColor: active ? 'var(--c-primary)' : 'var(--c-border)',
-    color: active ? 'var(--c-primary)' : 'var(--c-text)',
-    background: 'var(--c-bg)',
-  });
-
   return (
     <div
       ref={dialogRef}
@@ -153,37 +159,39 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
           <div className="min-h-0 flex-1 overflow-auto p-5">
             {section === 'appearance' && (
               <>
-                <h3 className="mb-2 text-[13px] font-semibold">{t('theme')}</h3>
-                <div className="mb-6 grid grid-cols-2 gap-2">
-                  {THEME_OPTIONS.map((o) => (
-                    <button
-                      key={o.id}
-                      data-theme-option={o.id}
-                      aria-pressed={config.theme === o.id}
-                      onClick={() => changeTheme(o.id)}
-                      className={`${chip} text-start`}
-                      style={activeStyled(config.theme === o.id)}
-                    >
-                      {t(o.labelKey.replace('common.', ''))}
-                    </button>
-                  ))}
-                </div>
+                <Row label={t('theme')}>
+                  <select
+                    data-theme-select
+                    aria-label={t('theme')}
+                    value={config.theme}
+                    onChange={(e) => changeTheme(e.target.value as ThemeId)}
+                    className={selectClass}
+                    style={fieldStyle}
+                  >
+                    {THEME_OPTIONS.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {t(o.labelKey.replace('common.', ''))}
+                      </option>
+                    ))}
+                  </select>
+                </Row>
 
-                <h3 className="mb-2 text-[13px] font-semibold">{t('language')}</h3>
-                <div className="flex flex-wrap gap-2">
-                  {LANGUAGES.map((lang) => (
-                    <button
-                      key={lang}
-                      data-language-option={lang}
-                      aria-pressed={config.language === lang}
-                      onClick={() => changeLanguage(lang)}
-                      className={chip}
-                      style={activeStyled(config.language === lang)}
-                    >
-                      {t(LANG_LABEL_KEY[lang])}
-                    </button>
-                  ))}
-                </div>
+                <Row label={t('language')}>
+                  <select
+                    data-language-select
+                    aria-label={t('language')}
+                    value={config.language}
+                    onChange={(e) => changeLanguage(e.target.value as Language)}
+                    className={selectClass}
+                    style={fieldStyle}
+                  >
+                    {LANGUAGES.map((lang) => (
+                      <option key={lang} value={lang}>
+                        {t(LANG_LABEL_KEY[lang])}
+                      </option>
+                    ))}
+                  </select>
+                </Row>
               </>
             )}
 
@@ -193,36 +201,18 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
                 <p className="mb-3 text-[11px] leading-5" style={{ color: 'var(--c-text-2)' }}>
                   {t('maxTokensHint')}
                 </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {BUDGETS.map((b) => (
-                    <button
-                      key={b}
-                      data-budget={b}
-                      aria-pressed={config.maxTokens === b}
-                      onClick={() => onConfigChange({ maxTokens: b })}
-                      className={chip}
-                      style={activeStyled(config.maxTokens === b)}
-                    >
-                      {b / 1000}k
-                    </button>
-                  ))}
-                  <input
-                    type="number"
-                    min={200}
-                    max={100000}
-                    step={100}
-                    value={config.maxTokens}
-                    onChange={(e) =>
-                      onConfigChange({ maxTokens: Number(e.target.value) || config.maxTokens })
-                    }
-                    className="h-7 w-24 rounded border px-2"
-                    style={{
-                      background: 'var(--c-bg)',
-                      borderColor: 'var(--c-border)',
-                      color: 'var(--c-text)',
-                    }}
-                  />
-                </div>
+                <input
+                  type="number"
+                  min={200}
+                  max={100000}
+                  step={100}
+                  value={config.maxTokens}
+                  onChange={(e) =>
+                    onConfigChange({ maxTokens: Number(e.target.value) || config.maxTokens })
+                  }
+                  className="h-8 w-32 rounded border px-2 font-mono"
+                  style={fieldStyle}
+                />
               </>
             )}
 
@@ -239,19 +229,15 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
                       setTokenSaved(false);
                     }}
                     placeholder="ghp_..."
-                    className="h-7 min-w-0 flex-1 rounded border px-2 font-mono"
-                    style={{
-                      background: 'var(--c-bg)',
-                      borderColor: 'var(--c-border)',
-                      color: 'var(--c-text)',
-                    }}
+                    className="h-8 min-w-0 flex-1 rounded border px-2 font-mono"
+                    style={fieldStyle}
                   />
                   <button
                     onClick={() => {
                       saveToken(token.trim());
                       setTokenSaved(true);
                     }}
-                    className="rounded px-3 py-1 text-white"
+                    className="rounded px-3 py-1.5 text-white"
                     style={{ background: 'var(--c-primary)' }}
                   >
                     {tokenSaved ? t('saved') : t('save')}
