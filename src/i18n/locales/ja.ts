@@ -57,6 +57,7 @@ export const ja = {
     navAdvanced: '詳細',
     maxTokensHint:
       '値を大きくするほど多くのシンボルを含められます。2k は概要向け、32k / 64k は数万行規模のプロジェクト向け',
+    refreshUnavailable: 'ZIP は静的スナップショットのため更新できません',
   },
   viewer: {
     welcomeTitle: 'GitHub リポジトリを入力して開始',

@@ -15,7 +15,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RepoSearchResult } from '../types/repo';
 import { formatStars } from '../utils/format';
-import MainMenu from './MainMenu';
+import MainMenus from './MainMenu';
 
 interface TopBarProps {
   searchResults: RepoSearchResult[];
@@ -133,12 +133,20 @@ export default function TopBar({
         >
           CA
         </span>
-        <span className="text-sm font-semibold">CodeAtlas</span>
+        <span className="hidden text-sm font-semibold xl:inline">CodeAtlas</span>
       </div>
 
-      {/* 命令中心：占顶栏可用宽度的 40~60%（flex-[2] 配合同级 flex-1 构成该比例） */}
-      <div className="relative mx-auto flex w-full max-w-[60%] min-w-[280px] flex-1 justify-center">
-        <div className="relative w-full">
+      <MainMenus
+        hasProject={hasProject}
+        canRefresh={canRefresh}
+        onOpenZip={() => fileRef.current?.click()}
+        onOpenLocalDir={onOpenLocalDir}
+        onCloseProject={onCloseProject}
+      />
+
+      {/* 命令中心：在"左侧菜单组"与"右侧设置"之间的剩余空间内居中 */}
+      <div className="flex min-w-0 flex-1 justify-center px-3">
+        <div className="relative w-full min-w-[240px] max-w-[520px]">
           <input
             ref={inputRef}
             value={value}
@@ -235,13 +243,6 @@ export default function TopBar({
             <circle cx="8" cy="18" r="2.2" fill="var(--c-bg)" />
           </svg>
         </button>
-        <MainMenu
-          hasProject={hasProject}
-          canRefresh={canRefresh}
-          onOpenZip={() => fileRef.current?.click()}
-          onOpenLocalDir={onOpenLocalDir}
-          onCloseProject={onCloseProject}
-        />
         <input
           ref={fileRef}
           type="file"

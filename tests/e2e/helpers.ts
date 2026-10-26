@@ -158,26 +158,35 @@ export async function loadFixtureZip(page: Page, zipPath: string): Promise<void>
   await expect(page.getByText('README.md').first()).toBeVisible({ timeout: 20_000 });
 }
 
-/** 打开顶栏「⋯」主菜单 */
-export async function openMainMenu(page: Page): Promise<void> {
-  await page.getByTestId('main-menu').click();
+export type MenuId = 'open' | 'project' | 'analysis';
+
+/** 打开顶栏某个分组菜单（打开 / 项目 / 分析） */
+export async function openMenu(page: Page, id: MenuId): Promise<void> {
+  await page.getByTestId(`menu-${id}`).click();
   await page.getByRole('menu').waitFor({ state: 'visible' });
 }
 
+/** 兼容旧写法：默认打开「分析」菜单 */
+export async function openMainMenu(page: Page): Promise<void> {
+  await openMenu(page, 'analysis');
+}
+
 /**
- * 通过主菜单执行一个操作（原工具条的按钮已收进菜单）。
- * labels 为多语言候选，命中任一即可。
+ * 通过顶栏菜单执行一个操作（原工具条的按钮已收进菜单）。
+ * labels 为多语言候选；依次尝试「分析 → 项目 → 打开」三个菜单。
  */
 export async function clickToolbar(page: Page, labels: string[]): Promise<void> {
-  await openMainMenu(page);
-  for (const label of labels) {
-    const item = page.getByRole('menuitem', { name: label, exact: false }).first();
-    if (await item.count()) {
-      await item.click();
-      return;
+  for (const id of ['analysis', 'project', 'open'] as const) {
+    await openMenu(page, id);
+    for (const label of labels) {
+      const item = page.getByRole('menuitem', { name: label, exact: false }).first();
+      if (await item.count()) {
+        await item.click();
+        return;
+      }
     }
+    await page.keyboard.press('Escape');
   }
-  await page.keyboard.press('Escape');
   throw new Error(`menu item not found: ${labels.join(' | ')}`);
 }
 

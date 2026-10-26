@@ -60,6 +60,7 @@ export const zh = {
     navAdvanced: '高级',
     maxTokensHint:
       '数值越大，上下文包能容纳的符号越多：2k 适合快速概览，32k / 64k 适合数万行的大项目',
+    refreshUnavailable: 'ZIP 项目是静态快照，无法刷新',
   },
   viewer: {
     welcomeTitle: '输入 GitHub 仓库地址开始',

@@ -57,6 +57,7 @@ export const en = {
     navAdvanced: 'Advanced',
     maxTokensHint:
       'Bigger budgets include more symbols: 2k for a quick overview, 32k / 64k for projects with tens of thousands of lines',
+    refreshUnavailable: 'ZIP projects are static snapshots and cannot be refreshed',
   },
   viewer: {
     welcomeTitle: 'Enter a GitHub repository to start',

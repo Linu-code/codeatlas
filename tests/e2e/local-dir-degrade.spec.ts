@@ -12,14 +12,14 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { openMainMenu, setLanguage } from './helpers';
+import { openMenu, setLanguage } from './helpers';
 
 const LOCAL_DIR_LABELS = ['打开本地目录', 'Open local folder', 'ローカルフォルダを開く'];
 const ZIP_LABELS = ['打开本地 ZIP', 'Open local ZIP', 'ローカル ZIP を開く'];
 
-/** 打开主菜单，断言「打开本地目录」项不存在，然后关闭菜单 */
+/** 打开「打开」菜单，断言本地目录项不存在，然后关闭菜单 */
 async function expectLocalDirItemAbsent(page: import('@playwright/test').Page): Promise<void> {
-  await openMainMenu(page);
+  await openMenu(page, 'open');
   for (const label of LOCAL_DIR_LABELS) {
     await expect(page.getByRole('menuitem', { name: label })).toHaveCount(0);
   }
@@ -28,12 +28,12 @@ async function expectLocalDirItemAbsent(page: import('@playwright/test').Page): 
 
 test('浏览器降级：默认语言下本地目录项隐藏、ZIP 项可用', async ({ page }) => {
   await page.goto('/');
-  // 顶栏渲染（品牌文字出现即代表 TopBar 挂载成功）
-  await expect(page.getByText('CodeAtlas', { exact: true })).toBeVisible();
+  // 顶栏渲染（「打开」菜单触发器出现即代表 TopBar 挂载成功）
+  await expect(page.getByTestId('menu-open')).toBeVisible();
 
   await expectLocalDirItemAbsent(page);
 
-  await openMainMenu(page);
+  await openMenu(page, 'open');
   let zipVisible = false;
   for (const label of ZIP_LABELS) {
     if ((await page.getByRole('menuitem', { name: label }).count()) > 0) {
