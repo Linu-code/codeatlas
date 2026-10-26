@@ -158,8 +158,31 @@ export async function loadFixtureZip(page: Page, zipPath: string): Promise<void>
   await expect(page.getByText('README.md').first()).toBeVisible({ timeout: 20_000 });
 }
 
-/** 点击工具条按钮（按文案匹配，兼容三种语言） */
+/** 打开顶栏「⋯」主菜单 */
+export async function openMainMenu(page: Page): Promise<void> {
+  await page.getByTestId('main-menu').click();
+  await page.getByRole('menu').waitFor({ state: 'visible' });
+}
+
+/**
+ * 通过主菜单执行一个操作（原工具条的按钮已收进菜单）。
+ * labels 为多语言候选，命中任一即可。
+ */
 export async function clickToolbar(page: Page, labels: string[]): Promise<void> {
+  await openMainMenu(page);
+  for (const label of labels) {
+    const item = page.getByRole('menuitem', { name: label, exact: false }).first();
+    if (await item.count()) {
+      await item.click();
+      return;
+    }
+  }
+  await page.keyboard.press('Escape');
+  throw new Error(`menu item not found: ${labels.join(' | ')}`);
+}
+
+/** 点击页面上任意按钮（面板内的页签等，不经过主菜单） */
+export async function clickButton(page: Page, labels: string[]): Promise<void> {
   for (const label of labels) {
     const btn = page.getByRole('button', { name: label, exact: false }).first();
     if (await btn.count()) {
@@ -167,7 +190,33 @@ export async function clickToolbar(page: Page, labels: string[]): Promise<void> 
       return;
     }
   }
-  throw new Error(`toolbar button not found: ${labels.join(' | ')}`);
+  throw new Error(`button not found: ${labels.join(' | ')}`);
+}
+
+/** 打开设置对话框（顶栏齿轮按钮） */
+export async function openSettings(page: Page): Promise<void> {
+  await page.getByTestId('open-settings').click();
+  await page.getByRole('dialog').waitFor({ state: 'visible' });
+}
+
+/** 关闭设置对话框（Esc） */
+export async function closeSettings(page: Page): Promise<void> {
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'hidden' });
+}
+
+/** 在设置页切换主题 */
+export async function setTheme(page: Page, theme: string): Promise<void> {
+  await openSettings(page);
+  await page.locator(`[data-theme-option="${theme}"]`).click();
+  await closeSettings(page);
+}
+
+/** 在设置页切换语言 */
+export async function setLanguage(page: Page, lang: 'zh' | 'en' | 'ja'): Promise<void> {
+  await openSettings(page);
+  await page.locator(`[data-language-option="${lang}"]`).click();
+  await closeSettings(page);
 }
 
 /** 打开某个文件（在文件树中点击文件名） */

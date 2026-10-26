@@ -33,7 +33,7 @@ import { useWorkspace } from './hooks/useWorkspace';
 import { workspace } from './workspace/workspace';
 import { loadWorkspace, saveWorkspace, serializeWorkspace } from './workspace/persistence';
 import { applyTheme, readSavedTheme, watchSystemTheme } from './theme/themes';
-import { DEFAULT_CONFIG, type AppConfig, type Language, type ThemeId } from './types/config';
+import { DEFAULT_CONFIG, type AppConfig, type Language } from './types/config';
 import { loadConfig, loadToken, saveConfig } from './utils/configStore';
 import {
   isTauri,
@@ -102,6 +102,11 @@ export default function App() {
 
   // ---------- 全局：项目工作区 ----------
   const { projects, activeId } = useWorkspace();
+  /** 当前激活项目（决定主菜单里"分析 / 刷新 / 关闭项目"是否可用） */
+  const activeEntry = projects.find((p) => p.id === activeId);
+  const hasProject = Boolean(activeEntry && activeEntry.source.kind !== 'none');
+  const canRefresh =
+    activeEntry?.source.kind === 'github' || activeEntry?.source.kind === 'local';
 
   /** N5①：原生目录选择 → 作为新项目打开（仅 Tauri 桌面端） */
   const handleOpenLocalDir = useCallback(() => {
@@ -204,10 +209,10 @@ export default function App() {
         onPickResult={(fullName) => launcher.pickResult(fullName)}
         onOpenZip={(file) => void workspace.openZip(file)}
         onOpenLocalDir={isTauri() ? handleOpenLocalDir : null}
-        theme={config.theme}
-        onThemeChange={(theme: ThemeId) => patchConfig({ theme })}
-        language={config.language}
-        onLanguageChange={changeLanguage}
+        hasProject={hasProject}
+        canRefresh={canRefresh}
+        onCloseProject={() => workspace.close(activeId)}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       {launcher.error && <ErrorBanner error={launcher.error} onClose={launcher.clearError} />}

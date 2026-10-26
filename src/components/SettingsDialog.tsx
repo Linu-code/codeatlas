@@ -1,12 +1,12 @@
 /**
  * SettingsDialog —— 设置页
  *
- * 内容（对应提示词"可手动切换语言、主题、清除缓存"）：
- *   · 语言 / 主题（与顶栏切换器共享同一状态）
- *   · GitHub Token（可选，仅提高限流；存 localStorage，不写配置文件）
- *   · AI 上下文包 token 预算（M6 使用）
- *   · jsDelivr 兜底开关（默认关，满足"仅 GitHub 域"约束）
- *   · 缓存用量 + 清除缓存
+ * 结构：左侧分类（外观 / 分析 / 数据 / 高级）+ 右侧内容。
+ * 目标：默认只看到常用项，低频/风险项（jsDelivr 兜底）收进「高级」，
+ * Token 与缓存这类"数据"操作集中在一处。
+ *
+ * 生效方式：主题 / 语言 / token 预算 / jsDelivr 均即时生效并持久化；
+ * 只有 GitHub Token 需要点「保存」（避免每敲一个字符就写一次存储）。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -26,17 +26,35 @@ interface Props {
   onConfigChange: (patch: Partial<AppConfig>) => void;
 }
 
+type Section = 'appearance' | 'analysis' | 'data' | 'advanced';
+
+const SECTIONS: { id: Section; labelKey: string }[] = [
+  { id: 'appearance', labelKey: 'navAppearance' },
+  { id: 'analysis', labelKey: 'analysisSection' },
+  { id: 'data', labelKey: 'navData' },
+  { id: 'advanced', labelKey: 'navAdvanced' },
+];
+
+const BUDGETS = [2000, 8000, 32000, 64000];
+
+const chip =
+  'rounded border px-2.5 py-1 text-xs transition-colors disabled:opacity-40';
+
 export default function SettingsDialog({ open, onClose, config, onConfigChange }: Props) {
   const { t, i18n } = useTranslation(['common']);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, open, onClose);
+
+  const [section, setSection] = useState<Section>('appearance');
   const [token, setToken] = useState('');
+  const [tokenSaved, setTokenSaved] = useState(false);
   const [stats, setStats] = useState({ trees: 0, files: 0, analysis: 0 });
   const [cleared, setCleared] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setToken(loadToken());
+    setTokenSaved(false);
     setCleared(false);
     void (async () => {
       const s = await cacheStats();
@@ -72,6 +90,12 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
 
   if (!open) return null;
 
+  const activeStyled = (active: boolean) => ({
+    borderColor: active ? 'var(--c-primary)' : 'var(--c-border)',
+    color: active ? 'var(--c-primary)' : 'var(--c-text)',
+    background: 'var(--c-bg)',
+  });
+
   return (
     <div
       ref={dialogRef}
@@ -84,131 +108,210 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
       aria-label={t('settingsTitle')}
     >
       <div
-        className="w-[520px] max-w-[92vw] rounded-lg border p-5 text-xs shadow-2xl"
+        className="flex h-[520px] w-[720px] max-h-[86vh] max-w-[94vw] overflow-hidden rounded-lg border text-xs shadow-2xl"
         style={{ background: 'var(--c-bg-2)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-4 text-sm font-semibold">{t('settingsTitle')}</h2>
-
-        {/* 语言 */}
-        <label className="mb-3 flex items-center justify-between gap-4">
-          <span style={{ color: 'var(--c-text-2)' }}>{t('language')}</span>
-          <select
-            value={config.language}
-            onChange={(e) => changeLanguage(e.target.value as Language)}
-            className="h-7 rounded border px-2"
-            style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
-          >
-            {LANGUAGES.map((l) => (
-              <option key={l} value={l}>
-                {t(`lang${l === 'zh' ? 'Zh' : l === 'en' ? 'En' : 'Ja'}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* 主题 */}
-        <label className="mb-3 flex items-center justify-between gap-4">
-          <span style={{ color: 'var(--c-text-2)' }}>{t('theme')}</span>
-          <select
-            value={config.theme}
-            onChange={(e) => changeTheme(e.target.value as ThemeId)}
-            className="h-7 rounded border px-2"
-            style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
-          >
-            {THEME_OPTIONS.map((o) => (
-              <option key={o.id} value={o.id}>
-                {t(o.labelKey.replace('common.', ''))}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Token */}
-        <div className="mb-3">
-          <label className="mb-1 block" style={{ color: 'var(--c-text-2)' }}>
-            {t('githubToken')}
-          </label>
-          <input
-            type="password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="ghp_..."
-            className="h-7 w-full rounded border px-2 font-mono"
-            style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
-          />
-          <p className="mt-1 text-[10px] leading-4" style={{ color: 'var(--c-text-2)' }}>
-            {t('githubTokenHint')}
-          </p>
-        </div>
-
-        {/* token 预算 */}
-        <label className="mb-3 flex items-center justify-between gap-4">
-          <span style={{ color: 'var(--c-text-2)' }}>{t('maxTokens')}</span>
-          <input
-            type="number"
-            min={200}
-            max={100000}
-            step={100}
-            value={config.maxTokens}
-            onChange={(e) => onConfigChange({ maxTokens: Number(e.target.value) || config.maxTokens })}
-            className="h-7 w-28 rounded border px-2"
-            style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
-          />
-        </label>
-
-        {/* jsDelivr 兜底 */}
-        <label className="mb-4 flex items-start gap-2">
-          <input
-            type="checkbox"
-            checked={config.jsdelivrFallback}
-            onChange={(e) => onConfigChange({ jsdelivrFallback: e.target.checked })}
-            className="mt-0.5"
-          />
-          <span>
-            <span className="block">{t('jsdelivrFallback')}</span>
-            <span className="block text-[10px] leading-4" style={{ color: 'var(--c-text-2)' }}>
-              {t('jsdelivrFallbackHint')}
-            </span>
-          </span>
-        </label>
-
-        {/* 缓存 */}
-        <div
-          className="mb-4 flex items-center justify-between gap-3 rounded border px-3 py-2"
-          style={{ borderColor: 'var(--c-border)' }}
+        {/* 左侧分类 */}
+        <nav
+          className="w-[152px] shrink-0 border-e p-2"
+          style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)' }}
         >
-          <span style={{ color: 'var(--c-text-2)' }}>
-            {t('cacheUsage', { trees: stats.trees, files: stats.files, analysis: stats.analysis })}
-            {cleared && <span style={{ color: 'var(--c-success)' }}> · {t('cacheCleared')}</span>}
-          </span>
-          <button
-            onClick={() => void handleClearCache()}
-            className="rounded border px-2 py-1"
-            style={{ borderColor: 'var(--c-border)' }}
-          >
-            {t('clearCache')}
-          </button>
-        </div>
+          <h2 className="px-2 pb-2 pt-1 text-sm font-semibold">{t('settingsTitle')}</h2>
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setSection(s.id)}
+              aria-current={section === s.id}
+              className="mb-0.5 block w-full rounded px-2 py-1.5 text-start"
+              style={{
+                background: section === s.id ? 'var(--c-bg-3)' : 'transparent',
+                color: section === s.id ? 'var(--c-primary)' : 'var(--c-text)',
+              }}
+            >
+              {t(s.labelKey)}
+            </button>
+          ))}
+        </nav>
 
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="rounded border px-3 py-1"
+        {/* 右侧内容 */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-auto p-5">
+            {section === 'appearance' && (
+              <>
+                <h3 className="mb-2 text-[13px] font-semibold">{t('theme')}</h3>
+                <div className="mb-6 grid grid-cols-2 gap-2">
+                  {THEME_OPTIONS.map((o) => (
+                    <button
+                      key={o.id}
+                      data-theme-option={o.id}
+                      aria-pressed={config.theme === o.id}
+                      onClick={() => changeTheme(o.id)}
+                      className={`${chip} text-start`}
+                      style={activeStyled(config.theme === o.id)}
+                    >
+                      {t(o.labelKey.replace('common.', ''))}
+                    </button>
+                  ))}
+                </div>
+
+                <h3 className="mb-2 text-[13px] font-semibold">{t('language')}</h3>
+                <div className="flex gap-2">
+                  {LANGUAGES.map((lang) => (
+                    <button
+                      key={lang}
+                      data-language-option={lang}
+                      aria-pressed={config.language === lang}
+                      onClick={() => changeLanguage(lang)}
+                      className={chip}
+                      style={activeStyled(config.language === lang)}
+                    >
+                      {t(`lang${lang === 'zh' ? 'Zh' : lang === 'en' ? 'En' : 'Ja'}`)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {section === 'analysis' && (
+              <>
+                <h3 className="mb-1 text-[13px] font-semibold">{t('maxTokens')}</h3>
+                <p className="mb-3 text-[11px] leading-5" style={{ color: 'var(--c-text-2)' }}>
+                  {t('maxTokensHint')}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {BUDGETS.map((b) => (
+                    <button
+                      key={b}
+                      data-budget={b}
+                      aria-pressed={config.maxTokens === b}
+                      onClick={() => onConfigChange({ maxTokens: b })}
+                      className={chip}
+                      style={activeStyled(config.maxTokens === b)}
+                    >
+                      {b / 1000}k
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    min={200}
+                    max={100000}
+                    step={100}
+                    value={config.maxTokens}
+                    onChange={(e) =>
+                      onConfigChange({ maxTokens: Number(e.target.value) || config.maxTokens })
+                    }
+                    className="h-7 w-24 rounded border px-2"
+                    style={{
+                      background: 'var(--c-bg)',
+                      borderColor: 'var(--c-border)',
+                      color: 'var(--c-text)',
+                    }}
+                  />
+                </div>
+              </>
+            )}
+
+            {section === 'data' && (
+              <>
+                <h3 className="mb-1 text-[13px] font-semibold">{t('githubToken')}</h3>
+                <div className="mb-1 flex items-center gap-2">
+                  <input
+                    data-testid="github-token"
+                    type="password"
+                    value={token}
+                    onChange={(e) => {
+                      setToken(e.target.value);
+                      setTokenSaved(false);
+                    }}
+                    placeholder="ghp_..."
+                    className="h-7 min-w-0 flex-1 rounded border px-2 font-mono"
+                    style={{
+                      background: 'var(--c-bg)',
+                      borderColor: 'var(--c-border)',
+                      color: 'var(--c-text)',
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      saveToken(token.trim());
+                      setTokenSaved(true);
+                    }}
+                    className="rounded px-3 py-1 text-white"
+                    style={{ background: 'var(--c-primary)' }}
+                  >
+                    {tokenSaved ? t('saved') : t('save')}
+                  </button>
+                </div>
+                <p className="mb-6 text-[10px] leading-4" style={{ color: 'var(--c-text-2)' }}>
+                  {t('githubTokenHint')}
+                </p>
+
+                <h3 className="mb-2 text-[13px] font-semibold">{t('clearCache')}</h3>
+                <div
+                  className="flex items-center justify-between gap-3 rounded border px-3 py-2"
+                  style={{ borderColor: 'var(--c-border)' }}
+                >
+                  <span style={{ color: 'var(--c-text-2)' }}>
+                    {t('cacheUsage', {
+                      trees: stats.trees,
+                      files: stats.files,
+                      analysis: stats.analysis,
+                    })}
+                    {cleared && (
+                      <span style={{ color: 'var(--c-success)' }}> · {t('cacheCleared')}</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => void handleClearCache()}
+                    className="shrink-0 rounded border px-2 py-1"
+                    style={{ borderColor: 'var(--c-border)' }}
+                  >
+                    {t('clearCache')}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {section === 'advanced' && (
+              <>
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={config.jsdelivrFallback}
+                    onChange={(e) => onConfigChange({ jsdelivrFallback: e.target.checked })}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block">{t('jsdelivrFallback')}</span>
+                    <span
+                      className="block text-[10px] leading-4"
+                      style={{ color: 'var(--c-text-2)' }}
+                    >
+                      {t('jsdelivrFallbackHint')}
+                    </span>
+                  </span>
+                </label>
+
+                <p className="mt-8 text-[10px]" style={{ color: 'var(--c-text-2)' }}>
+                  CodeAtlas v2.0.0 · web-tree-sitter 0.25.10
+                </p>
+              </>
+            )}
+          </div>
+
+          <div
+            className="flex justify-end gap-2 border-t p-3"
             style={{ borderColor: 'var(--c-border)' }}
           >
-            {t('close')}
-          </button>
-          <button
-            onClick={() => {
-              saveToken(token.trim());
-              onClose();
-            }}
-            className="rounded px-3 py-1 text-white"
-            style={{ background: 'var(--c-primary)' }}
-          >
-            {t('save')}
-          </button>
+            <button
+              onClick={onClose}
+              className="rounded px-3 py-1 text-white"
+              style={{ background: 'var(--c-primary)' }}
+            >
+              {t('close')}
+            </button>
+          </div>
         </div>
       </div>
     </div>

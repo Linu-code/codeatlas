@@ -3,13 +3,15 @@
  *
  * 覆盖：
  *   · 切换中/英/日，UI 文本实时变化（验收 6）
- *   · 语言选择写入 localStorage，刷新后保持（验收 7）
+ *   · 语言选择持久化，刷新后保持（验收 7）
  *   · 主题切换：Atlas Blue 与普通深色的 data-theme 取值不同（验收 10）
- *   · 跟随系统：模拟深色偏好，data-theme 自动解析为 atlas-dark（验收 11）
+ *   · 跟随系统：模拟深色/浅色偏好，data-theme 自动解析（验收 11）
+ *
+ * 说明：主题与语言不再是顶栏下拉，统一从「设置 → 外观」切换（data-* 属性定位）。
  */
 
 import { expect, test } from '@playwright/test';
-import { buildFixtureZip, loadFixtureZip } from './helpers';
+import { buildFixtureZip, loadFixtureZip, openMainMenu, setLanguage, setTheme } from './helpers';
 
 // 本文件默认在"系统深色"下运行，让 atlas 主题解析出确定的 atlas-dark；
 // 需要验证浅色分支的用例会自行用 colorScheme: 'light' 开独立上下文。
@@ -24,48 +26,47 @@ test.beforeAll(async () => {
 test('语言切换：中文 → English → 日本語，文案实时变化且刷新后保持', async ({ page }) => {
   await loadFixtureZip(page, zipPath);
 
-  // 顶栏第二个 select 是语言切换器（第一个是主题）
-  const langSelect = page.locator('header select').nth(1);
-  const themeSelect = page.locator('header select').first();
-
-  // 默认中文：工具条出现中文按钮
-  await expect(page.getByRole('button', { name: '代码度量' })).toBeVisible();
+  // 默认中文：主菜单里的分析项为中文
+  await openMainMenu(page);
+  await expect(page.getByRole('menuitem', { name: '代码度量' })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // 切英文
-  await langSelect.selectOption('en');
-  await expect(page.getByRole('button', { name: 'Code metrics' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible();
-  // html lang 同步
+  await setLanguage(page, 'en');
+  await openMainMenu(page);
+  await expect(page.getByRole('menuitem', { name: 'Code metrics' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('open-settings')).toHaveAttribute('aria-label', 'Settings');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
   // 切日文
-  await langSelect.selectOption('ja');
-  await expect(page.getByRole('button', { name: 'コードメトリクス' })).toBeVisible();
+  await setLanguage(page, 'ja');
+  await openMainMenu(page);
+  await expect(page.getByRole('menuitem', { name: 'コードメトリクス' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
 
-  // 刷新后保持日文（写入 localStorage 的语言偏好）
+  // 刷新后保持日文（语言偏好已持久化）
   await page.reload();
-  await expect(page.getByRole('button', { name: 'コードメトリクス' })).toBeVisible();
-
-  // 主题选择器仍可用（说明配置读取正常）
-  await expect(themeSelect).toBeVisible();
+  await openMainMenu(page);
+  await expect(page.getByRole('menuitem', { name: 'コードメトリクス' })).toBeVisible();
+  await page.keyboard.press('Escape');
 });
 
 test('主题：Atlas Blue 与普通深色有明显不同的 data-theme', async ({ page }) => {
   await loadFixtureZip(page, zipPath);
 
-  const themeSelect = page.locator('header select').first();
   const html = page.locator('html');
 
   // 普通深色
-  await themeSelect.selectOption('dark');
+  await setTheme(page, 'dark');
   await expect(html).toHaveAttribute('data-theme', 'dark');
   const darkBg = await page.evaluate(() =>
     getComputedStyle(document.body).getPropertyValue('--c-bg').trim(),
   );
 
   // Atlas Blue 专属主题（深色偏好下解析为 atlas-dark）
-  await themeSelect.selectOption('atlas');
+  await setTheme(page, 'atlas');
   await expect(html).toHaveAttribute('data-theme', 'atlas-dark');
   const atlasBg = await page.evaluate(() =>
     getComputedStyle(document.body).getPropertyValue('--c-bg').trim(),
@@ -77,7 +78,7 @@ test('主题：Atlas Blue 与普通深色有明显不同的 data-theme', async (
   expect(darkBg).toBe('#1e1e1e'); // 普通深色用中性灰
 
   // 浅色主题校验
-  await themeSelect.selectOption('light');
+  await setTheme(page, 'light');
   await expect(html).toHaveAttribute('data-theme', 'light');
 });
 
@@ -87,12 +88,11 @@ test('跟随系统：模拟深色偏好时实时解析为对应深色主题', as
   const page = await context.newPage();
   await page.goto('/');
 
-  const themeSelect = page.locator('header select').first();
-  await themeSelect.selectOption('system');
+  await setTheme(page, 'system');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
   // 切到 atlas：仍跟随系统，但落到 Atlas 深色变体
-  await themeSelect.selectOption('atlas');
+  await setTheme(page, 'atlas');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'atlas-dark');
 
   await context.close();
@@ -103,8 +103,7 @@ test('跟随系统：模拟浅色偏好时解析为浅色主题', async ({ brows
   const page = await context.newPage();
   await page.goto('/');
 
-  const themeSelect = page.locator('header select').first();
-  await themeSelect.selectOption('atlas');
+  await setTheme(page, 'atlas');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'atlas-light');
 
   await context.close();

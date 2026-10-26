@@ -14,9 +14,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RepoSearchResult } from '../types/repo';
-import type { Language, ThemeId } from '../types/config';
 import { formatStars } from '../utils/format';
-import ThemeLanguageControls from './ThemeLanguageControls';
+import MainMenu from './MainMenu';
 
 interface TopBarProps {
   searchResults: RepoSearchResult[];
@@ -25,12 +24,12 @@ interface TopBarProps {
   onSubmit: (raw: string) => void;
   onPickResult: (fullName: string) => void;
   onOpenZip: (file: File) => void;
-  /** N5①：Tauri 桌面端用原生对话框打开本地目录；浏览器传入 null 即隐藏按钮 */
+  /** N5①：Tauri 桌面端用原生对话框打开本地目录；浏览器传入 null 即隐藏 */
   onOpenLocalDir: (() => void) | null;
-  theme: ThemeId;
-  onThemeChange: (theme: ThemeId) => void;
-  language: Language;
-  onLanguageChange: (lang: Language) => void;
+  hasProject: boolean;
+  canRefresh: boolean;
+  onCloseProject: () => void;
+  onOpenSettings: () => void;
 }
 
 export default function TopBar({
@@ -41,10 +40,10 @@ export default function TopBar({
   onPickResult,
   onOpenZip,
   onOpenLocalDir,
-  theme,
-  onThemeChange,
-  language,
-  onLanguageChange,
+  hasProject,
+  canRefresh,
+  onCloseProject,
+  onOpenSettings,
 }: TopBarProps) {
   const { t, i18n } = useTranslation(['common', 'viewer']);
   const [value, setValue] = useState('');
@@ -220,27 +219,28 @@ export default function TopBar({
 
       <div className="flex shrink-0 items-center gap-2">
         <button
-          onClick={() => fileRef.current?.click()}
-          className="h-8 rounded border px-3 text-xs"
-          style={{ borderColor: 'var(--c-border)', background: 'var(--c-bg)' }}
+          data-testid="open-settings"
+          onClick={onOpenSettings}
+          aria-label={t('common:settingsTitle')}
+          title={t('common:settingsTitle')}
+          className="grid h-8 w-8 place-items-center rounded border hover:bg-[var(--c-bg-3)]"
+          style={{ borderColor: 'var(--c-border)', background: 'var(--c-bg)', color: 'var(--c-text)' }}
         >
-          {t('common:openZip')}
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <line x1="4" y1="6" x2="20" y2="6" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="18" x2="20" y2="18" />
+            <circle cx="9" cy="6" r="2.2" fill="var(--c-bg)" />
+            <circle cx="16" cy="12" r="2.2" fill="var(--c-bg)" />
+            <circle cx="8" cy="18" r="2.2" fill="var(--c-bg)" />
+          </svg>
         </button>
-        {/* N5①：桌面端打开本地目录；浏览器里无文件系统权，直接隐藏 */}
-        {onOpenLocalDir && (
-          <button
-            onClick={onOpenLocalDir}
-            className="h-8 rounded border px-3 text-xs"
-            style={{ borderColor: 'var(--c-border)', background: 'var(--c-bg)' }}
-          >
-            {t('common:openLocalDir')}
-          </button>
-        )}
-        <ThemeLanguageControls
-          theme={theme}
-          onThemeChange={onThemeChange}
-          language={language}
-          onLanguageChange={onLanguageChange}
+        <MainMenu
+          hasProject={hasProject}
+          canRefresh={canRefresh}
+          onOpenZip={() => fileRef.current?.click()}
+          onOpenLocalDir={onOpenLocalDir}
+          onCloseProject={onCloseProject}
         />
         <input
           ref={fileRef}

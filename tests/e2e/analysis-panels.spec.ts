@@ -12,7 +12,14 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { buildFixtureZip, clickToolbar, loadFixtureZip, openFileInTree, saveScreenshot } from './helpers';
+import {
+  buildFixtureZip,
+  clickButton,
+  clickToolbar,
+  loadFixtureZip,
+  openFileInTree,
+  saveScreenshot,
+} from './helpers';
 
 let zipPath: string;
 
@@ -65,7 +72,7 @@ test('代码度量：健康评分 + 复杂度表格，高复杂度标红', async
   await expect(table).toContainText(/认知复杂度|Cognitive|認知的/);
 
   // 切到文件概览视图
-  await clickToolbar(page, ['文件概览', 'File overview', 'ファイル概要']);
+  await clickButton(page, ['文件概览', 'File overview', 'ファイル概要']);
   await expect(page.locator('table').first()).toContainText('src/core.ts');
 
   await saveScreenshot(page, 'metrics');

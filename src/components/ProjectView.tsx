@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ToolBar, { type BottomPanel } from './ToolBar';
+import { onCommand, type AppCommand } from '../workspace/commands';
 import FileTree from './FileTree';
 import EditorTabs from './EditorTabs';
 import CodeView from './CodeView';
@@ -42,7 +42,7 @@ import { workspace, type ProjectEntry } from '../workspace/workspace';
 
 interface Props {
   entry: ProjectEntry;
-  /** 是否为当前激活项目（非激活时不响应全局快捷键） */
+  /** 是否为当前激活项目（非激活时不响应全局快捷键与顶栏菜单命令） */
   isActive: boolean;
   config: AppConfig;
   token: string;
@@ -50,6 +50,17 @@ interface Props {
   onLanguageChange: (lang: Language) => void;
   onOpenSettings: () => void;
 }
+
+/** 底部面板种类（原 ToolBar 导出；工具条移除后就近定义） */
+type BottomPanel =
+  | 'none'
+  | 'graph'
+  | 'metrics'
+  | 'search'
+  | 'references'
+  | 'reading'
+  | 'outline'
+  | 'architecture';
 
 export default function ProjectView({
   entry,
@@ -285,6 +296,39 @@ export default function ProjectView({
     [analysis, config.maxTokens, dirPurposeLabels, dirPurposes, fs, repo.tree],
   );
 
+  /**
+   * 顶栏主菜单 → 本视图命令。
+   * 仅激活项目响应；面板用"打开"语义（重复点同一项不关闭）。
+   */
+  const commandRef = useRef<(command: AppCommand) => void>(() => {});
+  commandRef.current = (command) => {
+    if (command === 'pack:open') {
+      setPackOpen(true);
+      if (!pack) void generatePack();
+      return;
+    }
+    if (command === 'project:refresh') {
+      void (async () => {
+        await repo.refresh();
+        analysis.reset();
+      })();
+      return;
+    }
+    const target = command.slice('panel:'.length) as Exclude<BottomPanel, 'none'>;
+    setPanel(target);
+    if (fs && target !== 'search' && target !== 'references') {
+      void analysis.analyze(fs, repo.tree);
+    }
+  };
+
+  useEffect(
+    () =>
+      onCommand((command) => {
+        if (isActive) commandRef.current(command);
+      }),
+    [isActive],
+  );
+
   // ---------- 资源前缀 ----------
   const rawBase = useMemo(() => {
     if (!meta || meta.source !== 'github' || !meta.owner || !meta.repo || !meta.branch) return null;
@@ -451,26 +495,6 @@ export default function ProjectView({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <ToolBar
-        hasProject={Boolean(fs)}
-        canRefresh={repo.canRefresh}
-        panel={panel}
-        analyzing={analysis.state.running}
-        analyzingLabel={t('analysis:analyzing')}
-        onTogglePanel={(p) => void togglePanel(p)}
-        onToggleContextPack={() => {
-          setPackOpen(true);
-          if (!pack) void generatePack();
-        }}
-        onRefresh={() =>
-          void (async () => {
-            await repo.refresh();
-            analysis.reset();
-          })()
-        }
-        onOpenSettings={onOpenSettings}
-      />
-
       {repo.error && <ErrorBanner error={repo.error} onClose={repo.clearError} />}
 
       <div className="flex min-h-0 flex-1">
@@ -507,7 +531,9 @@ export default function ProjectView({
               </div>
             )}
 
-            {!repo.loading && !active && <WelcomeScreen />}
+            {!repo.loading && !active && (
+              <WelcomeScreen onOpenZip={(file) => void repo.loadZip(file)} />
+            )}
 
             {!repo.loading && active?.error && (
               <div className="grid h-full place-items-center text-xs" style={{ color: 'var(--c-error)' }}>
@@ -645,7 +671,12 @@ export default function ProjectView({
         {meta ? (
           <>
             <span>
-              {t('viewer:source')}: {meta.source === 'github' ? 'GitHub' : t('viewer:zipFile')}
+              {t('viewer:source')}:{' '}
+              {meta.source === 'github'
+                ? 'GitHub'
+                : meta.source === 'local'
+                  ? t('viewer:localDir')
+                  : t('viewer:zipFile')}
             </span>
             <span>{meta.name}</span>
             {meta.branch && (
@@ -656,6 +687,12 @@ export default function ProjectView({
             <span>
               {t('viewer:fileCount')}: {fileCount}
             </span>
+            {analysis.state.running && (
+              <span style={{ color: 'var(--c-primary)' }}>
+                {t('analysis:analyzing')} {analysis.state.progress.parsed}/
+                {analysis.state.progress.total}
+              </span>
+            )}
             {stats && (
               <span>
                 {t('analysis:indexStats', {
