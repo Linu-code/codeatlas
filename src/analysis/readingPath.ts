@@ -97,7 +97,7 @@ export function buildReadingPath(
 
   const ctx = buildResolveContext(paths);
   const importEdges = buildImportEdges(files, ctx);
-  const callEdges = index ? buildCallEdges(files, index) : [];
+  const callEdges = index ? buildCallEdges(files, index, importEdges) : [];
   const weighted = mergeWeightedEdges(importEdges, callEdges);
 
   // PageRank：用加权边（调用权重更高，反映更强耦合）

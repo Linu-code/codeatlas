@@ -4,12 +4,14 @@
  * 关键点：
  *   1. 只有"在本仓库内有定义"的被调用者才会连边 —— 这是去噪的核心，
  *      否则 React 这类仓库里 console.log / useState / fetch 会淹没真图（见提示词的性能要求）。
- *   2. 同名符号优先解析到同文件定义（局部优先），否则解析到全局唯一定义；
- *      多个候选时取行号最靠前者，并在节点上标注 ambiguous，避免误导。
+ *   2. 同名符号优先解析到同文件定义（局部优先）；跨文件时只有「全局唯一定义」
+ *      或「本文件导入的目标里恰好只有一个定义点」才连边，其余一律放弃 ——
+ *      通用名（get / map / helper）在大型仓库里能匹配到几十个定义，猜一个等于造假边。
  *   3. 节点数超过 maxNodes 时按「入度 + 出度」排序截断，保证图里留下的是骨架而不是噪声。
  */
 
 import type { FileAnalysis, SymbolDef } from './symbols';
+import { buildImportEdges, buildResolveContext } from './importResolver';
 
 export interface GraphNode {
   /** 稳定 id：`${file}#${name}@${line}` */
@@ -64,6 +66,17 @@ export function buildCallGraph(files: FileAnalysis[], opts: BuildOptions = {}): 
   }
 
   // ---------- 2. 解析调用边 ----------
+  // 文件 → 它导入的文件集合，仅用于给多义符号消歧
+  const depsOf = new Map<string, Set<string>>();
+  {
+    const ctx = buildResolveContext(files.map((f) => f.path));
+    for (const edge of buildImportEdges(files, ctx)) {
+      const set = depsOf.get(edge.from) ?? new Set<string>();
+      set.add(edge.to);
+      depsOf.set(edge.from, set);
+    }
+  }
+
   const edges = new Set<string>();
   const inDeg = new Map<string, number>();
   const outDeg = new Map<string, number>();
@@ -80,15 +93,25 @@ export function buildCallGraph(files: FileAnalysis[], opts: BuildOptions = {}): 
     }
 
     for (const call of f.calls) {
-      // 目标解析：同文件定义 > 全局唯一定义 > 全局多个候选取首个
+      // 目标解析：同文件定义 > 全局唯一定义 > 本文件导入目标中唯一的定义点 > 放弃
       let targetId: string | null = localDefs.get(call.to) ?? null;
       if (!targetId) {
         const candidates = defsByName.get(call.to);
         if (candidates && candidates.length > 0) {
-          targetId = [...candidates].sort((a, b) => a.line - b.line)[0].id;
+          const files2 = [...new Set(candidates.map((c) => c.file))];
+          if (files2.length === 1) {
+            targetId = [...candidates].sort((a, b) => a.line - b.line)[0].id;
+          } else {
+            const deps = depsOf.get(f.path);
+            const viaImport = deps ? candidates.filter((c) => deps.has(c.file)) : [];
+            const viaImportFiles = [...new Set(viaImport.map((c) => c.file))];
+            if (viaImportFiles.length === 1) {
+              targetId = [...viaImport].sort((a, b) => a.line - b.line)[0].id;
+            }
+          }
         }
       }
-      if (!targetId) continue; // 仓库外调用（console.log/fetch/React hooks 等）→ 丢弃
+      if (!targetId) continue; // 仓库外调用或多义无法消歧 → 丢弃
 
       // 调用方：调用点所在函数；顶层调用则以「文件级伪节点」为源
       const fromId = call.from ? localDefs.get(call.from) ?? null : null;

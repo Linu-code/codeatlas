@@ -118,3 +118,67 @@ describe('buildImportEdges', () => {
     ]);
   });
 });
+
+describe('monorepo 包名解析', () => {
+  const ctx = buildResolveContext([
+    'packages/shared/src/index.ts',
+    'packages/shared/src/utils.ts',
+    'packages/runtime-core/src/index.ts',
+    'packages/runtime-core/src/component.ts',
+  ]);
+
+  it('@scope/pkg 解析到包入口', () => {
+    expect(resolveImportSpec('packages/runtime-core/src/component.ts', '@vue/shared', ctx)).toBe(
+      'packages/shared/src/index.ts',
+    );
+  });
+
+  it('无 scope 的包名同样解析', () => {
+    expect(resolveImportSpec('packages/runtime-core/src/component.ts', 'shared', ctx)).toBe(
+      'packages/shared/src/index.ts',
+    );
+  });
+
+  it('包名不匹配时不影响其它说明符', () => {
+    expect(resolveImportSpec('packages/shared/src/utils.ts', '@vue/not-exist', ctx)).toBeNull();
+  });
+});
+
+describe('目录级解析（Go / Python / Java 的完整模块路径）', () => {
+  const ctx = buildResolveContext([
+    'internal/bytesconv/bytesconv.go',
+    'internal/bytesconv/atoi.go',
+    'binding/binding.go',
+    'binding/form.go',
+    'src/flask/__init__.py',
+    'src/flask/app.py',
+    'src/flask/sansio/__init__.py',
+    'src/flask/sansio/blueprints.py',
+    'src/flask/models.py',
+  ]);
+
+  it('Go：完整模块路径按目录后缀 + 同名入口', () => {
+    expect(resolveImportSpec('gin.go', 'github.com/gin-gonic/gin/binding', ctx)).toBe(
+      'binding/binding.go',
+    );
+    expect(resolveImportSpec('gin.go', 'github.com/gin-gonic/gin/internal/bytesconv', ctx)).toBe(
+      'internal/bytesconv/bytesconv.go',
+    );
+  });
+
+  it('Python：包名命中带 src 前缀的目录，取 __init__', () => {
+    expect(resolveImportSpec('src/flask/app.py', 'flask', ctx)).toBe('src/flask/__init__.py');
+  });
+
+  it('Python：.x / ..x 是包层级，不是带点的目录名', () => {
+    expect(resolveImportSpec('src/flask/app.py', '.sansio', ctx)).toBe('src/flask/sansio/__init__.py');
+    expect(resolveImportSpec('src/flask/sansio/blueprints.py', '..models', ctx)).toBe(
+      'src/flask/models.py',
+    );
+    expect(resolveImportSpec('src/flask/app.py', '.', ctx)).toBe('src/flask/__init__.py');
+  });
+
+  it('目录匹配到自身时返回 null（同包不构成依赖）', () => {
+    expect(resolveImportSpec('binding/binding.go', 'pkg/binding', ctx)).toBeNull();
+  });
+});

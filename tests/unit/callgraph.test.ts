@@ -79,6 +79,36 @@ describe('buildCallGraph', () => {
     expect(edges[0].to).toBe(nodeId('c.ts', 'shared', 1));
   });
 
+  it('多义符号无导入线索时不猜（宁可少连）', () => {
+    // 两个文件都定义 get，调用方没有 import 任何一个 → 不连边
+    const files: FileAnalysis[] = [
+      mkFile('a.ts', [{ name: 'get', line: 1 }], []),
+      mkFile('b.ts', [{ name: 'get', line: 1 }], []),
+      mkFile(
+        'c.ts',
+        [{ name: 'run', line: 10 }],
+        [{ from: 'run', to: 'get', line: 11 }],
+      ),
+    ];
+    expect(buildCallGraph(files).edges).toHaveLength(0);
+  });
+
+  it('多义符号由导入关系消歧：只连到导入目标里的那一个', () => {
+    const files: FileAnalysis[] = [
+      mkFile('impl.ts', [{ name: 'get', line: 1 }], []),
+      mkFile('other.ts', [{ name: 'get', line: 1 }], []),
+      mkFile(
+        'c.ts',
+        [{ name: 'run', line: 10 }],
+        [{ from: 'run', to: 'get', line: 11 }],
+        ['./impl'],
+      ),
+    ];
+    const g = buildCallGraph(files);
+    expect(g.edges).toHaveLength(1);
+    expect(g.edges[0].to).toBe(nodeId('impl.ts', 'get', 1));
+  });
+
   it('顶层调用与自递归不计入（图更干净）', () => {
     const files: FileAnalysis[] = [
       mkFile(

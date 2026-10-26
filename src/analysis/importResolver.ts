@@ -26,7 +26,27 @@ export interface ResolveContext {
   paths: Set<string>;
   /** 文件名（去扩展名，小写）→ 路径列表 */
   byStem: Map<string, string[]>;
+  /**
+   * 包名（小写）→ 入口文件。
+   * monorepo 里 `import { x } from '@vue/shared'` 指向的是 `packages/shared/src/index.ts`，
+   * 不是 npm 包；不建这张表，Vue 这类仓库有 400+ 条依赖边会因为没有 node_modules 而全部丢失。
+   */
+  byPackage: Map<string, string>;
+  /**
+   * 目录后缀（小写）→ 该目录下的文件。
+   * 用于「完整模块路径」的语言：Go 的 `github.com/o/r/binding`、Rust 的 `crate::a::b`、
+   * Python 的 `from flask import X`、Java 的 `com.example.user`。
+   *
+   * 键是**目录路径的任意后缀**：`src/flask` 会同时登记为 `src/flask` 与 `flask`，
+   * 否则 Python 的 `import flask` 永远匹配不到 `src/flask/`。
+   * 同一后缀对应多个目录时不登记（歧义 → 不猜）。
+   */
+  byDir: Map<string, string[]>;
 }
+
+/** monorepo 包入口：packages|libs|modules|apps/<pkg>/(src/)?index.{ext} */
+const PKG_ENTRY_RE =
+  /^(?:packages|libs|modules|apps)\/([^/]+)\/(?:src\/)?(?:index|mod)\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
 
 /** 可用扩展名（解析相对路径时逐个尝试） */
 const EXTENSIONS = [
@@ -56,15 +76,56 @@ export function stemOf(path: string): string {
 export function buildResolveContext(paths: Iterable<string>): ResolveContext {
   const set = new Set<string>();
   const byStem = new Map<string, string[]>();
+  const byPackage = new Map<string, string>();
+  const dirFiles = new Map<string, string[]>();
+  const dirSuffix = new Map<string, Set<string>>();
+
   for (const p of paths) {
     set.add(p);
     const stem = stemOf(p);
     const list = byStem.get(stem);
     if (list) list.push(p);
     else byStem.set(stem, [p]);
+
+    const pkg = PKG_ENTRY_RE.exec(p);
+    if (pkg) {
+      const name = pkg[1].toLowerCase();
+      if (!byPackage.has(name)) byPackage.set(name, p);
+    }
+
+    const slash = p.lastIndexOf('/');
+    if (slash > 0) {
+      const dir = p.slice(0, slash).toLowerCase();
+      const inDir = dirFiles.get(dir);
+      if (inDir) inDir.push(p);
+      else dirFiles.set(dir, [p]);
+    }
   }
+
+  // 目录的每个路径后缀都登记一次；同后缀多个目录视为歧义，不登记
+  const ambiguous = new Set<string>();
+  for (const dir of dirFiles.keys()) {
+    const segs = dir.split('/');
+    for (let i = 0; i < segs.length; i += 1) {
+      const key = segs.slice(i).join('/');
+      if (ambiguous.has(key)) continue;
+      const owners = dirSuffix.get(key);
+      if (!owners) dirSuffix.set(key, new Set([dir]));
+      else if (!owners.has(dir)) {
+        ambiguous.add(key);
+        dirSuffix.delete(key);
+      }
+    }
+  }
+
+  const byDir = new Map<string, string[]>();
+  for (const [key, owners] of dirSuffix) {
+    for (const dir of owners) byDir.set(key, dirFiles.get(dir)!);
+  }
+
   for (const list of byStem.values()) list.sort();
-  return { paths: set, byStem };
+  for (const list of byDir.values()) list.sort();
+  return { paths: set, byStem, byPackage, byDir };
 }
 
 /** POSIX 风格路径规范化（处理 ../ 与 ./） */
@@ -111,6 +172,41 @@ function isContiguousSubsequence(segments: string[], fileSegments: string[]): bo
 }
 
 /**
+ * 目录级解析：说明符的最后 1~3 段匹配仓库内的目录。
+ *
+ * 覆盖「完整模块路径」语言：
+ *   Go      github.com/gin-gonic/gin/binding  → binding/binding.go
+ *   Python  from app.models import X          → app/models/(__init__.py | models.py)
+ *   Rust    crate::analysis::graph            → analysis/graph/(mod.rs | graph.rs)
+ *   Java    com.example.user                  → .../user/User.java
+ *
+ * 只在按文件名打分失败后调用；且必须能确定唯一入口，否则返回 null（不猜）。
+ */
+function resolveByDir(segments: string[], ctx: ResolveContext, fromPath: string): string | null {
+  if (segments.length === 0) return null;
+  const lower = segments.map((s) => s.toLowerCase());
+
+  for (let take = Math.min(3, lower.length); take >= 1; take -= 1) {
+    const suffix = lower.slice(lower.length - take);
+    const files = ctx.byDir.get(suffix.join('/'));
+    if (!files || files.length === 0) continue;
+
+    const dirName = suffix[take - 1];
+    // 入口优先级：与目录同名的文件（Go / Java / Rust 惯例）> index 类文件
+    // 必须排除 fromPath：Go 的同包文件互不 import，命中自己说明这条说明符没有跨文件含义。
+    const sameName = files.find((p) => stemOf(p) === dirName && p !== fromPath);
+    if (sameName) return sameName;
+
+    const indexHit = files.find((p) => INDEX_FILES.includes(stemOf(p)) && p !== fromPath);
+    if (indexHit) return indexHit;
+
+    // 目录存在但入口不明确 → 不猜
+    return null;
+  }
+  return null;
+}
+
+/**
  * 解析一条导入说明符。
  * @returns 目标文件路径；无法高置信度判定时返回 null
  */
@@ -119,8 +215,20 @@ export function resolveImportSpec(
   rawSpec: string,
   ctx: ResolveContext,
 ): string | null {
-  const spec = rawSpec.trim().replace(/^['"`]|['"`]$/g, '').replace(/;$/, '');
+  let spec = rawSpec.trim().replace(/^['"`]|['"`]$/g, '').replace(/;$/, '');
   if (!spec) return null;
+
+  // ---------- 0. Python 相对导入：点号是层级，不是路径分隔符 ----------
+  // `from .sansio import x` → `./sansio`；`from ..models import y` → `../models`
+  // 不转换的话 `.sansio` 会被当成名字里带点的目录，整个包的内部依赖全部解析失败。
+  const pyRel = /^(\.+)([A-Za-z_][\w.]*)$/.exec(spec);
+  if (pyRel) {
+    const up = pyRel[1].length - 1;
+    const rest = pyRel[2].replace(/\./g, '/');
+    spec = up === 0 ? `./${rest}` : `${'../'.repeat(up)}${rest}`;
+  } else if (/^\.+$/.test(spec)) {
+    spec = './';
+  }
 
   // ---------- 1. 相对路径 ----------
   if (spec.startsWith('.') || spec.startsWith('/')) {
@@ -132,6 +240,14 @@ export function resolveImportSpec(
   }
 
   // ---------- 2. 模块路径（点号 / 斜杠 / Rust 双冒号） ----------
+  // ---------- 2.1 monorepo 包名优先：@vue/shared → packages/shared/src/index.ts ----------
+  // 放在打分之前：包入口是确定的一对一映射，比按名字相似度猜更可靠。
+  const pkgName = spec.startsWith('@') ? spec.split('/')[1] : spec.split('/')[0];
+  if (pkgName) {
+    const entry = ctx.byPackage.get(pkgName.toLowerCase());
+    if (entry && entry !== fromPath) return entry;
+  }
+
   const segments = spec
     .replace(/\\/g, '/')
     .split(/[.:/]+/)
@@ -147,7 +263,6 @@ export function resolveImportSpec(
 
   const last = cleaned[cleaned.length - 1].toLowerCase();
   const candidates = (ctx.byStem.get(last) ?? []).filter((p) => p !== fromPath);
-  if (candidates.length === 0) return null;
 
   // ---------- 3. 打分：连续匹配 > 部分匹配 ----------
   let bestScore = 0;
@@ -174,8 +289,14 @@ export function resolveImportSpec(
   }
 
   // 歧义（多个同分候选）时不猜，交给调用方忽略这条边
-  if (bestScore === 0 || best.length !== 1) return null;
-  return best[0];
+  if (bestScore !== 0 && best.length === 1) {
+    return best[0];
+  }
+
+  // ---------- 4. 目录级匹配（Go / Python / Rust / Java 的完整模块路径） ----------
+  // 必须放在按文件名匹配之后：`import 'utils/format'` 应优先命中 format.ts，
+  // 而不是目录 utils 的入口文件。
+  return resolveByDir(cleaned, ctx, fromPath);
 }
 
 /** 由导入关系构建文件级依赖边（去重、排序，保证确定性） */
@@ -197,24 +318,61 @@ export function buildImportEdges(files: FileAnalysis[], ctx: ResolveContext): Fi
 
 /**
  * 由调用关系构建文件级依赖边：调用目标 → 定义所在文件。
- * 同文件优先（局部优先解析），否则取排序后的第一个定义文件。
+ *
+ * 目标选择顺序（与文件头"宁可少连"原则一致）：
+ *   1. 本文件内有定义 → 不算跨文件边
+ *   2. 全局只有唯一一个文件定义该符号 → 连它
+ *   3. 多个文件都定义 → 只在「本文件 import 的目标里恰好有且仅有一个」时才连
+ *   4. 仍然多义 → 放弃
+ *
+ * 曾经的实现是「多义时取排序后的第一个文件」，在 Vue 这类仓库里会产生 30%~40% 的
+ * 假边（`get` / `map` / `helper` 这类通用名到处都是），而且这些边权重是 2，
+ * 会把阅读路线的排序整个带偏。
+ *
+ * @param importEdges 已知的文件级导入边，用于给多义符号提供约束（可选）
  */
-export function buildCallEdges(files: FileAnalysis[], index: ScopeIndex): FileEdge[] {
+export function buildCallEdges(
+  files: FileAnalysis[],
+  index: ScopeIndex,
+  importEdges: FileEdge[] = [],
+): FileEdge[] {
+  // 文件 → 它导入的文件集合（只用于消歧，不必精确）
+  const depsOf = new Map<string, Set<string>>();
+  for (const edge of importEdges) {
+    const set = depsOf.get(edge.from) ?? new Set<string>();
+    set.add(edge.to);
+    depsOf.set(edge.from, set);
+  }
+
   const seen = new Set<string>();
   const edges: FileEdge[] = [];
+
   for (const file of files) {
+    const deps = depsOf.get(file.path);
+
     for (const call of file.calls) {
       const entry = index.symbols.get(call.to);
       if (!entry || entry.definitions.length === 0) continue;
-      const sorted = [...entry.definitions].sort(
-        (a, b) => a.file.localeCompare(b.file) || a.line - b.line,
+
+      // 定义所在文件（去重、排除自身）
+      const defFiles = [...new Set(entry.definitions.map((d) => d.file))].filter(
+        (f) => f !== file.path,
       );
-      const target = sorted.find((d) => d.file === file.path) ?? sorted[0];
-      if (!target || target.file === file.path) continue;
-      const key = `${file.path}\u0000${target.file}`;
+      if (defFiles.length === 0) continue;
+
+      let target: string | undefined;
+      if (defFiles.length === 1) {
+        target = defFiles[0];
+      } else if (deps) {
+        const viaImport = defFiles.filter((f) => deps.has(f));
+        if (viaImport.length === 1) target = viaImport[0];
+      }
+      if (!target) continue;
+
+      const key = `${file.path}\u0000${target}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      edges.push({ from: file.path, to: target.file });
+      edges.push({ from: file.path, to: target });
     }
   }
   return edges.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));

@@ -15,6 +15,15 @@
 - **超大树被静默截断**（`src/sources/github.ts`）：`git/trees?recursive=1` 返回的 `truncated` 字段原本被解构后丢弃，大仓库只加载前 10 万条却毫无提示，后续所有分析都基于残缺数据。新增错误码 `truncated` 与 10 语言提示，明确建议「打开具体子目录或用 ZIP 加载」。
 - **git 子模块被当成普通文件**（`src/sources/github.ts`）：`type: 'commit'`（mode 160000）的条目没有内容可读，点击必然 404。现于建树前按 blob/tree 过滤。
 
+### 修复（第二轮：依赖解析与调用图消歧）
+
+上一轮修完「能不能连上」之后，继续量了「连得对不对」，又发现 4 个问题：
+
+- **monorepo 包名解析缺失**（`importResolver.ts`）：`import { x } from '@vue/shared'` 在仓库内没有 `node_modules`，按文件名 stem 匹配永远找不到目标；Vue 有 **453 条**这类引用被静默丢弃。新增「包名 → 入口文件」索引（`packages|libs|modules|apps/<pkg>/(src/)?index.*`）。Vue 的 import 解析率 **65.2% → 87.5%**，导入边 1266 → 1689，模块边 **22 → 65**。
+- **目录级解析缺失**（`importResolver.ts`）：Go 的 `github.com/o/r/binding`、Python 的 `from flask import X`、Java 的 `com.example.user` 都是「路径段 ↔ 目录」语义，按文件名匹配全部失败。新增目录后缀索引（`src/flask` 同时登记为 `src/flask` 与 `flask`，同后缀多目录视为歧义不猜），入口优先取「与目录同名文件」再取 `index/__init__/mod`。顺带修掉一个提前 return 导致目录匹配永远执行不到的问题，以及目录匹配可能命中自身造成的自环。
+- **Python 相对导入不被识别**（`importResolver.ts`）：`from .sansio import x` 的 `.sansio` 被当成「名字里带点的目录」而非层级，flask 有 164 条相对导入全部失败。现在 `.x` / `..x` / `.` 按层级转换为 `./x` / `../x` / `./`。flask 解析率 **19.1% → 45.1%**，导入边 71 → **169**，并检出 2 个此前看不到的文件级循环。
+- **调用边对多义符号「随便挑一个」**：`callgraph.ts` 与 `buildCallEdges`（阅读路线）遇到同名符号时，前者取行号最靠前的、后者取按路径排序第一个，与该模块头部「宁可少连，不可乱连」的原则自相矛盾。通用名（`get` / `map` / `helper`）在大型仓库能匹配到几十个定义，实测多义率：Vue 38.0%、gin 39.9%、flask 30.0%。现在改为「全局唯一定义 → 连；多义时只有本文件 import 的目标里恰好只有一个定义点才连；否则放弃」。Vue 调用图边 390 → **292**、gin 305 → **203**、flask 228 → **145**，剔掉的都是假边。
+
 ### 新增
 
 - **2.1 平台适配（代码层，打包仍待做）**
