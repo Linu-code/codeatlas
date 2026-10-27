@@ -26,6 +26,8 @@ function displayModule(m: string): string {
 }
 import { estimateTokens } from '../utils/tokenEstimator';
 import type { FileMetrics } from './metrics';
+import { resolveFocus, type FocusResult } from './focus';
+import type { FileEdge } from './importResolver';
 
 /**
  * 上下文包用途。
@@ -36,8 +38,9 @@ import type { FileMetrics } from './metrics';
  *   overview —— 理解项目（默认）：概览 / 构建 / 技术栈 / 目录 / 阅读路线 / 符号 / 调用
  *   health   —— 代码健康：概览 + 复杂度 Top / 循环依赖 / 超大文件 / god file
  *   api      —— 对外接口：概览 + 构建 / 技术栈 + 模块地图 + 导出符号签名
+ *   focus    —— 任务焦点：按关键词检索出的相关文件子图（只讲相关的那一块）
  */
-export type PackIntent = 'overview' | 'health' | 'api';
+export type PackIntent = 'overview' | 'health' | 'api' | 'focus';
 
 /** 循环依赖摘要（health 用途需要，由 ProjectView 从分析结果传入） */
 export interface CycleSummary {
@@ -54,6 +57,10 @@ export interface ContextPackInput {
   intent?: PackIntent;
   /** 循环依赖（仅 health 用途使用） */
   cycles?: CycleSummary;
+  /** 焦点查询（仅 focus 用途使用）：模块名 / 符号名 / 文件名等关键词 */
+  focusQuery?: string;
+  /** 文件级依赖边（focus 用途用于扩散相关文件） */
+  fileEdges?: FileEdge[];
   files: FileAnalysis[];
   index: ScopeIndex;
   metrics?: FileMetrics[];
@@ -335,8 +342,86 @@ function renderReadingPath(input: ContextPackInput): string | null {
   return lines.join('\n');
 }
 
-/** 第 4+5 步：按预算裁剪并格式化 */
-export function generateContextPack(input: ContextPackInput): ContextPack {
+/** 目录用途 → (目录, 本地化文案) 列表：让中文查询也能落到目录上 */
+function collectDirLabels(input: ContextPackInput): { dir: string; label: string }[] {
+  if (!input.dirPurposes || !input.purposeLabels) return [];
+  const out: { dir: string; label: string }[] = [];
+  for (const [dir, purpose] of input.dirPurposes) {
+    const label = input.purposeLabels[purpose.key];
+    if (label) out.push({ dir, label });
+  }
+  return out;
+}
+
+/** 按焦点分数重排符号（避免检索结果被 PageRank 重排冲淡） */
+function orderByFocus(ranked: RankedSymbol[], focus: FocusResult): RankedSymbol[] {
+  const keyOf = (s: RankedSymbol) => `${s.file}\u0000${s.name}`;
+  const byKey = new Map<string, RankedSymbol>();
+  for (const s of ranked) byKey.set(keyOf(s), s);
+
+  const out: RankedSymbol[] = [];
+  const seen = new Set<string>();
+  for (const key of focus.symbolKeys) {
+    const sym = byKey.get(key);
+    if (!sym) continue;
+    out.push(sym);
+    seen.add(key);
+  }
+
+  // 命中文件里的其它符号也带上：只给一个函数名，AI 仍要来回要整个文件
+  const fileOrder = new Map(focus.hits.map((h, i) => [h.file, i]));
+  const rest = ranked
+    .filter((s) => fileOrder.has(s.file) && !seen.has(keyOf(s)))
+    .sort((a, b) => (fileOrder.get(a.file) ?? 0) - (fileOrder.get(b.file) ?? 0) || a.line - b.line);
+  out.push(...rest);
+  return out;
+}
+
+/** 焦点章节：查询、命中统计、命中文件与依据 */
+function renderFocusBlock(result: FocusResult, query: string): string {
+  const lines = ['## 任务焦点', '', `- 查询：\`${oneLine(query)}\``];
+  if (result.terms.length) lines.push(`- 切词：${result.terms.map((t) => `\`${t}\``).join(', ')}`);
+  lines.push('');
+
+  if (result.hits.length === 0) {
+    lines.push(
+      '未在符号名或文件路径中找到与查询相关的代码。',
+      '',
+      '建议改用**模块名 / 文件名 / 英文标识符**（如 `auth`、`useFocusTrap`、`renderer`），',
+      '或改用「理解项目」用途先看整体结构。',
+    );
+    return lines.join('\n');
+  }
+
+  const seeds = result.hits.filter((h) => h.seed).length;
+  lines.push(
+    `命中 ${result.hits.length} 个文件（直接命中 ${seeds} 个，其余为依赖扩散）/ ${result.matchedSymbols} 个符号`,
+    '',
+  );
+  if (result.onlyTestHits) {
+    lines.push(
+      '> 注意：直接命中全部在**测试 / 示例文件**里，实现代码中没有词面匹配。',
+      '> 下表的实现文件是由测试引用扩散得到的，请把它们当作"可能相关"，而不是确定答案。',
+      '',
+    );
+  }
+  lines.push('## 相关文件（按相关度排序）', '');
+  for (const hit of result.hits) {
+    lines.push(`- \`${hit.file}\` **${hit.score}** — ${hit.reasons.join('；')}`);
+  }
+  return lines.join('\n');
+}
+
+/** 命中文件之间的依赖关系：让 AI 知道这些文件的调用顺序，而不是并列一堆路径 */
+function renderFocusEdges(result: FocusResult): string | null {
+  if (result.edges.length === 0) return null;
+  const lines = ['## 焦点内依赖关系', ''];
+  for (const e of result.edges.slice(0, 40)) lines.push(`- \`${e.from}\` → \`${e.to}\``);
+  if (result.edges.length > 40) lines.push(`- …另有 ${result.edges.length - 40} 条，已省略`);
+  return lines.join('\n');
+}
+
+/** 第 4+5 步：按预算裁剪并格式化 */export function generateContextPack(input: ContextPackInput): ContextPack {
   const budget = input.maxTokens;
   const intent: PackIntent = input.intent ?? 'overview';
   const ranked = rankSymbols(input);
@@ -356,11 +441,13 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
     overview: '',
     health: '（代码健康）',
     api: '（对外接口）',
+    focus: '（任务焦点）',
   };
   const INTENT_SCOPE: Record<PackIntent, string> = {
     overview: '项目概览 / 构建与运行 / 技术栈 / 目录结构与模块地图 / 建议阅读路线 / 核心符号签名 / 关键调用关系。',
     health: '项目概览 / 代码健康（复杂度 Top、循环依赖、超大文件）/ 核心符号签名。',
     api: '项目概览 / 构建与运行 / 技术栈 / 模块地图 / 对外导出符号（含签名）。',
+    focus: '项目概览 / 任务焦点（检索命中的文件与依据）/ 相关符号签名 / 焦点内依赖关系。',
   };
 
   const headerParts = [
@@ -386,7 +473,8 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
 
   // 构建与运行 / 技术栈：只有拿到 package.json 时才输出（缺失不影响其它章节）
   // health 用途不带这些：关心代码质量时，框架与依赖清单是纯噪音。
-  if (manifest && intent !== 'health') {
+  // focus 也不带：问的是"这块怎么改"，构建脚本与依赖清单都是预算浪费。
+  if (manifest && intent !== 'health' && intent !== 'focus') {
     headerParts.push('## 构建与运行', '');
     const pkg = [manifest.name, manifest.version].filter(Boolean).join('@');
     if (pkg) headerParts.push(`- 包：${pkg}`);
@@ -420,12 +508,40 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
 
   const callSummary = renderCallSummary(input, ranked);
 
+  /**
+   * 焦点检索：把"我要做某件事"落成"该读哪几个文件"。
+   * 命中为空时**不静默退回全量**，而是如实说明没找到并给出改法 —— 假的相关性比没有更糟。
+   */
+  const focusResult =
+    intent === 'focus'
+      ? resolveFocus({
+          query: input.focusQuery ?? '',
+          symbols: ranked,
+          filePaths: input.files.map((f) => f.path),
+          fileEdges: input.fileEdges,
+          dirLabels: collectDirLabels(input),
+          maxFiles: 12,
+        })
+      : null;
+  const focusBlock = focusResult ? renderFocusBlock(focusResult, input.focusQuery ?? '') : null;
+  const focusEdgeBlock = focusResult ? renderFocusEdges(focusResult) : null;
+
   /** api 用途只关心对外契约，内部符号不进包 */
-  const symbolPool = intent === 'api' ? ranked.filter((s) => s.exported) : ranked;
+  const symbolPool: RankedSymbol[] =
+    intent === 'api'
+      ? ranked.filter((s) => s.exported)
+      : intent === 'focus' && focusResult && focusResult.symbolKeys.length
+        ? orderByFocus(ranked, focusResult)
+        : ranked;
 
   // 符号区：用二分搜索找"最大可容纳符号数"
   const renderSymbols = (count: number): string => {
-    const title = intent === 'api' ? '## 对外导出符号（含签名）' : '## 核心符号签名（按重要性排序）';
+    const title =
+      intent === 'api'
+        ? '## 对外导出符号（含签名）'
+        : intent === 'focus'
+          ? '## 相关符号签名（按相关度排序）'
+          : '## 核心符号签名（按重要性排序）';
     if (count <= 0) return `${title}\n\n（预算不足，未包含符号列表）`;
     const lines = [title, ''];
     for (const s of symbolPool.slice(0, count)) {
@@ -453,6 +569,9 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
       if (healthBlock) parts.push(healthBlock);
     } else if (intent === 'api') {
       parts.push(skeletonBlock);
+    } else if (intent === 'focus') {
+      // 焦点包不放全量目录树：命中的那几个文件才是重点，整棵树只会挤掉它们
+      if (focusBlock) parts.push(focusBlock);
     } else {
       if (layer.tree === 'full') parts.push('## 目录结构', treeBlock.text);
       else if (layer.tree === 'skeleton') parts.push(skeletonBlock);
@@ -462,6 +581,7 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
 
     parts.push(renderSymbols(count));
     if (intent === 'overview' && layer.calls) parts.push(callSummary);
+    if (intent === 'focus' && layer.calls && focusEdgeBlock) parts.push(focusEdgeBlock);
 
     const trim = renderTrimNote({
       included: Math.min(count, symbolPool.length),
@@ -470,7 +590,7 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
       modulesTotal: totalModules,
       fullTree: intent === 'overview' && layer.tree === 'full',
       readingOmitted: intent === 'overview' && !layer.reading && Boolean(readingBlock),
-      callsOmitted: intent === 'overview' && !layer.calls,
+      callsOmitted: (intent === 'overview' || intent === 'focus') && !layer.calls,
     });
     if (trim) parts.push(trim);
 
@@ -511,6 +631,7 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
    *      若不参与降级，小预算下会把整个组装撑爆，直接掉到"只剩项目概览"的空包。
    *
    * health / api 用途的章节结构是固定的，没有可降的层级，只留一档用于二分符号数。
+   * focus 只有"焦点内依赖关系"可降（次要信息），命中文件与符号必须保住。
    */
   const LADDER: Layer[] =
     intent === 'overview'
@@ -521,7 +642,12 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
           { tree: 'skeleton', reading: false, calls: false },
           { tree: 'none', reading: false, calls: false },
         ]
-      : [{ tree: 'none', reading: false, calls: false }];
+      : intent === 'focus'
+        ? [
+            { tree: 'none', reading: false, calls: true },
+            { tree: 'none', reading: false, calls: false },
+          ]
+        : [{ tree: 'none', reading: false, calls: false }];
 
   let chosen = { markdown: header, included: 0 };
   let treeIncluded = false;

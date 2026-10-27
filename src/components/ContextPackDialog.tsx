@@ -24,7 +24,7 @@ interface Props {
   /** AI 解读配置；provider 为 off 时按钮引导用户去设置页 */
   ai: AiConfig;
   /** 生成；传 budget / intent 时按该组合重新生成 */
-  onGenerate: (budget?: number, intent?: PackIntent) => void;
+  onGenerate: (budget?: number, intent?: PackIntent, focusQuery?: string) => void;
   /** 持久化预算（写入配置），可选 */
   onBudgetChange?: (budget: number) => void;
   onClose: () => void;
@@ -56,6 +56,7 @@ export default function ContextPackDialog({
   const [tab, setTab] = useState<'md' | 'json' | 'ai'>('md');
   const [copied, setCopied] = useState(false);
   const [intent, setIntent] = useState<PackIntent>('overview');
+  const [focusQuery, setFocusQuery] = useState('');
 
   // ---------- AI 解读（默认关闭；只有点按钮才发请求） ----------
   const [aiText, setAiText] = useState('');
@@ -159,7 +160,7 @@ export default function ContextPackDialog({
             onChange={(e) => {
               const next = e.target.value as PackIntent;
               setIntent(next);
-              onGenerate(undefined, next);
+              onGenerate(undefined, next, focusQuery);
             }}
             disabled={generating}
             aria-label={t('analysis:packIntent')}
@@ -174,6 +175,7 @@ export default function ContextPackDialog({
             <option value="overview">{t('analysis:intentOverview')}</option>
             <option value="health">{t('analysis:intentHealth')}</option>
             <option value="api">{t('analysis:intentApi')}</option>
+            <option value="focus">{t('analysis:intentFocus')}</option>
           </select>
           <div className="flex items-center gap-1" role="group" aria-label={t('common:maxTokens')}>
             {[2000, 8000, 32000, 64000].map((b) => (
@@ -181,7 +183,7 @@ export default function ContextPackDialog({
                 key={b}
                 onClick={() => {
                   onBudgetChange?.(b);
-                  onGenerate(b, intent);
+                  onGenerate(b, intent, focusQuery);
                 }}
                 disabled={generating}
                 title={`${b} tokens`}
@@ -218,6 +220,39 @@ export default function ContextPackDialog({
             ))}
           </div>
         </header>
+
+        {intent === 'focus' && (
+          <div className="mb-2 flex items-center gap-2">
+            <input
+              data-pack-focus
+              value={focusQuery}
+              onChange={(e) => setFocusQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !generating) onGenerate(undefined, 'focus', focusQuery);
+              }}
+              placeholder={t('analysis:focusQueryPlaceholder')}
+              aria-label={t('analysis:focusQueryPlaceholder')}
+              className="min-w-0 flex-1 rounded border px-2 py-1 text-xs"
+              style={{
+                background: 'var(--c-bg)',
+                borderColor: 'var(--c-border)',
+                color: 'var(--c-text)',
+              }}
+            />
+            <button
+              data-pack-focus-run
+              onClick={() => onGenerate(undefined, 'focus', focusQuery)}
+              disabled={generating}
+              className="shrink-0 rounded px-3 py-1 text-white disabled:opacity-50"
+              style={{ background: 'var(--c-primary)' }}
+            >
+              {t('analysis:focusQueryRun')}
+            </button>
+            <span className="shrink-0" style={{ color: 'var(--c-text-2)' }}>
+              {t('analysis:focusQueryHint')}
+            </span>
+          </div>
+        )}
 
         <div
           className="mb-3 min-h-[200px] flex-1 overflow-auto rounded border p-3"
@@ -256,7 +291,7 @@ export default function ContextPackDialog({
 
         <footer className="flex items-center gap-2">
           <button
-            onClick={() => onGenerate(undefined, intent)}
+            onClick={() => onGenerate(undefined, intent, focusQuery)}
             disabled={generating}
             className="rounded px-3 py-1 text-white disabled:opacity-50"
             style={{ background: 'var(--c-primary)' }}

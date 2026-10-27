@@ -165,6 +165,32 @@ test('上下文包用途：切到「代码健康」后章节随之改变', async
   await expect(dialog).not.toContainText('## 关键调用关系');
 });
 
+test('上下文包用途：任务焦点按关键词只给相关文件，查不到时如实说明', async ({ page }) => {
+  await loadFixtureZip(page, zipPath);
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+
+  await dialog.locator('[data-pack-intent]').selectOption('focus');
+  const input = dialog.locator('[data-pack-focus]');
+  await expect(input).toBeVisible();
+
+  await input.fill('compute');
+  await dialog.locator('[data-pack-focus-run]').click();
+
+  await expect(dialog).toContainText('## 任务焦点', { timeout: 40_000 });
+  await expect(dialog).toContainText('src/core.ts');
+  // 焦点包不放全量目录树与阅读路线，避免挤掉命中的文件
+  await expect(dialog).not.toContainText('## 目录结构');
+  await expect(dialog).not.toContainText('## 建议阅读路线');
+
+  // 查不到时不能假装相关
+  await input.fill('kafka producer');
+  await dialog.locator('[data-pack-focus-run]').click();
+  await expect(dialog).toContainText('未在符号名或文件路径中找到', { timeout: 40_000 });
+});
+
 test('AI 解读：默认关闭时给出设置引导，且不发任何请求', async ({ page }) => {  await loadFixtureZip(page, zipPath);
 
   // 记录点击后产生的请求，确认默认关闭时确实不联网

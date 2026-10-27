@@ -263,7 +263,7 @@ export default function ProjectView({
 
   // ---------- AI 上下文包 ----------
   const generatePack = useCallback(
-    async (budgetOverride?: number, intentOverride?: PackIntent) => {
+    async (budgetOverride?: number, intentOverride?: PackIntent, focusOverride?: string) => {
       if (!fs) return;
       setPackGenerating(true);
       try {
@@ -284,6 +284,8 @@ export default function ProjectView({
           repoName: fs.meta.name,
           branch: fs.meta.branch,
           intent: intentOverride,
+          focusQuery: focusOverride,
+          fileEdges: bundle.moduleGraph?.fileEdges,
           cycles: bundle.cycles ?? undefined,
           files: bundle.files,
           index: bundle.index,
@@ -741,7 +743,7 @@ export default function ProjectView({
         generating={packGenerating}
         budget={config.maxTokens}
         ai={config.ai}
-        onGenerate={(budget, intent) => void generatePack(budget, intent)}
+        onGenerate={(budget, intent, focusQuery) => void generatePack(budget, intent, focusQuery)}
         onBudgetChange={(maxTokens) => onConfigChange({ maxTokens })}
         onClose={() => setPackOpen(false)}
       />

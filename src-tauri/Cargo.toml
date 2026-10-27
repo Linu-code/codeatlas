@@ -1,6 +1,6 @@
 [package]
 name = "codeatlas"
-version = "4.0.0"
+version = "4.1.0"
 description = "CodeAtlas - local-first code understanding & navigation"
 authors = ["CodeAtlas contributors"]
 edition = "2021"

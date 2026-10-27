@@ -152,6 +152,49 @@ describe('上下文包用途', () => {
     expect(pack.markdown).toContain('## 项目概览');
     expect(pack.markdown).toContain('## 核心符号签名');
   });
+
+  it('focus：按关键词选出相关文件，并解释命中依据', () => {
+    const pack = generateContextPack({ ...base, intent: 'focus', focusQuery: 'compute' });
+    expect(pack.markdown).toContain('## 任务焦点');
+    expect(pack.markdown).toContain('src/core.ts');
+    expect(pack.markdown).toContain('符号 `compute`');
+    // 焦点包不放全量目录树，避免挤掉命中的文件
+    expect(pack.markdown).not.toContain('## 目录结构');
+    expect(pack.markdown).toContain('## 相关符号签名');
+  });
+
+  it('focus：沿依赖边扩散，并把邻居标成非直接命中', () => {
+    const pack = generateContextPack({
+      ...base,
+      intent: 'focus',
+      focusQuery: 'compute',
+      fileEdges: [{ from: 'src/core.ts', to: 'src/main.ts' }],
+    });
+    expect(pack.markdown).toContain('src/main.ts');
+    expect(pack.markdown).toContain('依赖扩散命中');
+    expect(pack.markdown).toContain('## 焦点内依赖关系');
+  });
+
+  it('focus：查不到时如实说没找到，不假装相关', () => {
+    const pack = generateContextPack({ ...base, intent: 'focus', focusQuery: 'kafka producer' });
+    expect(pack.markdown).toContain('未在符号名或文件路径中找到');
+    expect(pack.markdown).not.toContain('## 相关文件');
+  });
+
+  it('focus 不含技术栈章节（与任务无关的元信息是纯噪音）', () => {
+    const pack = generateContextPack({
+      ...base,
+      intent: 'focus',
+      focusQuery: 'compute',
+      manifestText: '{"name":"x","version":"1.0.0","dependencies":{"react":"^18.0.0"}}',
+    });
+    expect(pack.markdown).not.toContain('## 技术栈');
+  });
+
+  it('focus 同样守住预算上限', () => {
+    const pack = generateContextPack({ ...base, intent: 'focus', focusQuery: 'compute', maxTokens: 400 });
+    expect(pack.tokens).toBeLessThanOrEqual(400);
+  });
 });
 
 // ---------- pagerank ----------
