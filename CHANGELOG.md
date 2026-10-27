@@ -2,7 +2,26 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。
 
-## [Unreleased]
+## [3.0.0] - 2026-10-27
+
+### 新增（AI 解读）
+
+把 AI 上下文包直接交给模型，流式输出项目导读。**默认关闭，不配置就一条请求都不发** —— 「零后台外部请求」的约束没有改变。
+
+- **双通道**（`src/utils/aiClient.ts`，零 SDK 依赖，安装包体积不变）：
+  - **本地 Ollama**：默认 `127.0.0.1:11434` + `qwen2.5-coder`，代码不出本机，断网可用；协议为 `POST /api/chat` 的 NDJSON 流。
+  - **OpenAI 兼容 API**：`POST {base}/chat/completions` 的 SSE 流，baseURL / 模型名可配，OpenAI、DeepSeek、自建网关通用。
+  - 两者都是手写 `ReadableStream` 解析：跨 chunk 的半行 JSON 会留在缓冲区，不会切坏；`[DONE]` 与心跳注释忽略。
+- **输出结构固定**：项目做什么 / 模块分工 / 新人阅读顺序（5–8 个文件 + 理由）/ 风险点。指令明确要求**不得编造上下文里没有的文件与依赖**。
+- **UI**：设置页新增「AI 助手」分区（提供方下拉、服务地址、模型、API Key、隐私说明）；上下文包对话框新增 `AI` 页签与「AI 解读」按钮，流式增量上屏，可随时停止。
+- **安全**：`baseUrl` 必须是 `http`/`https`，其它协议直接拒绝；API Key 只存 `localStorage`（与 GitHub Token 同策略），不写入 `config.json`。
+- **错误分类**：`not-configured` / `invalid-url` / `network` / `http` / `empty` / `aborted`，每类都给出可操作提示。
+- 单测 +13（`tests/unit/aiClient.test.ts`，覆盖两种协议、跨 chunk 拼接、错误分类与取消）；E2E +2（默认关闭时不发任何外部请求、设置页可切换提供方并回填默认值）。
+
+### 变更
+
+- **平台范围收紧为仅 Windows**：README 不再宣称「macOS / Linux 代码层适配已完成」。源码里保留的跨平台写法（`Ctrl`/`Cmd` 双认、跨平台字体栈、POSIX 路径）如实标注为「未经打包与运行验证」，不构成支持承诺；多平台移出路线图。
+- **版本号单一来源**：状态栏的 `CodeAtlas vX.Y.Z` 改为 Vite `define` 注入的 `__APP_VERSION__`（取自 `package.json`），不再手写一份。
 
 ### 修复（格式与预览的区域/覆盖缺口）
 

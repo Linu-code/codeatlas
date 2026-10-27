@@ -1,16 +1,21 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import pkg from './package.json' with { type: 'json' };
 
 /**
  * CodeAtlas 前端构建配置。
  *  - base './'：Tauri 以 tauri:// 协议加载 dist/，相对路径最稳。
  *  - clearScreen/envPrefix/strictPort：Tauri 官方推荐配置。
+ *  - define __APP_VERSION__：状态栏版本号取自 package.json，不再手写一份（曾漏改）。
  *  - Vitest：分析层与数据层为纯函数，跑在 node 环境。
  */
 export default defineConfig({
   plugins: [react()],
   base: './',
   clearScreen: false,
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   server: {
     port: 5173,
     strictPort: true,

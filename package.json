@@ -1,7 +1,7 @@
 {
   "name": "codeatlas",
   "private": true,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "CodeAtlas - local-first code understanding & navigation. Zero cloud AI, zero telemetry.",
   "license": "MIT",
   "author": "CodeAtlas contributors",

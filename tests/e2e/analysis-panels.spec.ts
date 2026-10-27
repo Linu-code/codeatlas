@@ -18,6 +18,7 @@ import {
   clickToolbar,
   loadFixtureZip,
   openFileInTree,
+  openSettings,
   saveScreenshot,
 } from './helpers';
 
@@ -143,4 +144,43 @@ test('AI 上下文包：生成含四要素的 Markdown 与 JSON（验收 18/19�
   await dialog.getByRole('button', { name: 'JSON', exact: true }).click();
   await expect(dialog).toContainText('"generator": "CodeAtlas"');
   await expect(dialog).toContainText('"symbols"');
+});
+
+test('AI 解读：默认关闭时给出设置引导，且不发任何请求', async ({ page }) => {
+  await loadFixtureZip(page, zipPath);
+
+  // 记录点击后产生的请求，确认默认关闭时确实不联网
+  const external: string[] = [];
+  page.on('request', (req) => {
+    const { protocol, hostname } = new URL(req.url());
+    if (protocol.startsWith('http') && !hostname.startsWith('127.0.0.1') && hostname !== 'localhost') {
+      external.push(hostname);
+    }
+  });
+
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+
+  // AI 页签存在，点击页脚按钮后提示去设置页配置
+  await dialog.locator('[data-ai-explain]').click();
+  await expect(dialog).toContainText('尚未配置 AI 提供方');
+
+  expect(external).toHaveLength(0);
+});
+
+test('设置页含 AI 助手分区，可切换提供方并回填默认地址', async ({ page }) => {
+  await page.goto('/');
+  await openSettings(page);
+
+  await page.getByRole('button', { name: /AI 助手|AI Assistant/ }).click();
+  const provider = page.locator('[data-ai-provider]');
+  await expect(provider).toHaveValue('off');
+
+  await provider.selectOption('ollama');
+  await expect(page.locator('[data-ai-base-url]')).toHaveAttribute(
+    'placeholder',
+    'http://127.0.0.1:11434',
+  );
+  await expect(page.locator('[data-ai-model]')).toHaveAttribute('placeholder', 'qwen2.5-coder');
 });

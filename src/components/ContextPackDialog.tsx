@@ -8,9 +8,12 @@
  *   · 预算可在设置页调整（默认 1000，验收要求 ≤ 2000）
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ContextPack } from '../analysis/contextPack';
+import type { AiConfig } from '../types/config';
+import { AiError, buildExplainPrompt, streamChat } from '../utils/aiClient';
+import { loadAiKey } from '../utils/configStore';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
@@ -18,6 +21,8 @@ interface Props {
   pack: ContextPack | null;
   generating: boolean;
   budget: number;
+  /** AI 解读配置；provider 为 off 时按钮引导用户去设置页 */
+  ai: AiConfig;
   /** 生成；传 budget 时按该预算生成（预算预设按钮用） */
   onGenerate: (budget?: number) => void;
   /** 持久化预算（写入配置），可选 */
@@ -40,6 +45,7 @@ export default function ContextPackDialog({
   pack,
   generating,
   budget,
+  ai,
   onGenerate,
   onBudgetChange,
   onClose,
@@ -47,15 +53,68 @@ export default function ContextPackDialog({
   const { t } = useTranslation(['analysis', 'common']);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, open, onClose);
-  const [tab, setTab] = useState<'md' | 'json'>('md');
+  const [tab, setTab] = useState<'md' | 'json' | 'ai'>('md');
   const [copied, setCopied] = useState(false);
 
-  const copy = useCallback(async () => {
+  // ---------- AI 解读（默认关闭；只有点按钮才发请求） ----------
+  const [aiText, setAiText] = useState('');
+  const [aiRunning, setAiRunning] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const stopAi = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setAiRunning(false);
+  }, []);
+
+  const runAi = useCallback(async () => {
     if (!pack) return;
-    await navigator.clipboard.writeText(tab === 'md' ? pack.markdown : pack.json);
+    setTab('ai');
+    setAiError(null);
+
+    if (ai.provider === 'off') {
+      setAiError(t('analysis:aiNotConfigured'));
+      return;
+    }
+
+    stopAi();
+    setAiText('');
+    setAiRunning(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      await streamChat(ai, loadAiKey(), buildExplainPrompt(pack.markdown), {
+        signal: controller.signal,
+        onDelta: (delta) => setAiText((prev) => prev + delta),
+      });
+    } catch (e) {
+      if (e instanceof AiError && e.code === 'aborted') return;
+      const message = e instanceof Error ? e.message : String(e);
+      setAiError(t('analysis:aiFailed', { message }));
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      setAiRunning(false);
+    }
+  }, [pack, ai, t, stopAi]);
+
+  // 关闭对话框 / 组件卸载：中断在途请求（避免响应回来时对已卸载组件 setState）
+  useEffect(() => {
+    if (open) return undefined;
+    stopAi();
+    return undefined;
+  }, [open, stopAi]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const copy = useCallback(async () => {
+    const text = tab === 'ai' ? aiText : tab === 'md' ? pack?.markdown : pack?.json;
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  }, [pack, tab]);
+  }, [pack, tab, aiText]);
 
   if (!open) return null;
 
@@ -118,26 +177,26 @@ export default function ContextPackDialog({
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setTab('md')}
-              className="rounded border px-2 py-0.5"
-              style={{
-                borderColor: tab === 'md' ? 'var(--c-primary)' : 'var(--c-border)',
-                color: tab === 'md' ? 'var(--c-primary)' : 'var(--c-text)',
-              }}
-            >
-              Markdown
-            </button>
-            <button
-              onClick={() => setTab('json')}
-              className="rounded border px-2 py-0.5"
-              style={{
-                borderColor: tab === 'json' ? 'var(--c-primary)' : 'var(--c-border)',
-                color: tab === 'json' ? 'var(--c-primary)' : 'var(--c-text)',
-              }}
-            >
-              JSON
-            </button>
+            {(
+              [
+                ['md', 'Markdown'],
+                ['json', 'JSON'],
+                ['ai', 'AI'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                data-pack-tab={id}
+                onClick={() => setTab(id)}
+                className="rounded border px-2 py-0.5"
+                style={{
+                  borderColor: tab === id ? 'var(--c-primary)' : 'var(--c-border)',
+                  color: tab === id ? 'var(--c-primary)' : 'var(--c-text)',
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </header>
 
@@ -145,12 +204,34 @@ export default function ContextPackDialog({
           className="mb-3 min-h-[200px] flex-1 overflow-auto rounded border p-3"
           style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)' }}
         >
-          {generating && <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:analyzing')}</p>}
-          {!generating && !pack && <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:contextPackEmpty')}</p>}
-          {pack && (
-            <pre className="m-0 whitespace-pre-wrap font-mono text-[11.5px] leading-5">
-              {tab === 'md' ? pack.markdown : pack.json}
-            </pre>
+          {tab === 'ai' ? (
+            <>
+              {aiError && <p style={{ color: 'var(--c-warning)' }}>{aiError}</p>}
+              {aiRunning && !aiText && (
+                <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:aiRunning')}</p>
+              )}
+              {aiText && (
+                <pre className="m-0 whitespace-pre-wrap font-sans text-[12px] leading-6">
+                  {aiText}
+                  {aiRunning && <span style={{ color: 'var(--c-primary)' }}>▍</span>}
+                </pre>
+              )}
+              {!aiRunning && !aiText && !aiError && (
+                <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:aiIdle')}</p>
+              )}
+            </>
+          ) : (
+            <>
+              {generating && <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:analyzing')}</p>}
+              {!generating && !pack && (
+                <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:contextPackEmpty')}</p>
+              )}
+              {pack && (
+                <pre className="m-0 whitespace-pre-wrap font-mono text-[11.5px] leading-5">
+                  {tab === 'md' ? pack.markdown : pack.json}
+                </pre>
+              )}
+            </>
           )}
         </div>
 
@@ -164,8 +245,26 @@ export default function ContextPackDialog({
             {generating ? t('analysis:analyzing') : t('analysis:contextPackGenerate')}
           </button>
           <button
+            data-ai-explain
+            onClick={() => void runAi()}
+            disabled={!pack || generating || aiRunning}
+            className="rounded border px-3 py-1 disabled:opacity-40"
+            style={{ borderColor: 'var(--c-primary)', color: 'var(--c-primary)' }}
+          >
+            {aiRunning ? t('analysis:aiRunning') : t('analysis:aiExplain')}
+          </button>
+          {aiRunning && (
+            <button
+              onClick={stopAi}
+              className="rounded border px-3 py-1"
+              style={{ borderColor: 'var(--c-warning)', color: 'var(--c-warning)' }}
+            >
+              {t('analysis:aiStop')}
+            </button>
+          )}
+          <button
             onClick={() => void copy()}
-            disabled={!pack}
+            disabled={tab === 'ai' ? !aiText : !pack}
             className="rounded border px-3 py-1 disabled:opacity-40"
             style={{ borderColor: 'var(--c-border)' }}
           >

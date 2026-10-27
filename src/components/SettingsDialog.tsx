@@ -10,12 +10,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AppConfig, Language, ThemeId } from '../types/config';
+import { AI_DEFAULTS, type AiProvider, type AppConfig, type Language, type ThemeId } from '../types/config';
 import { LANGUAGES, saveLanguage } from '../i18n';
 import { THEME_OPTIONS, applyTheme, saveTheme } from '../theme/themes';
 import { cacheStats, clearAllCache } from '../sources/cache';
 import { analysisCacheStats, clearAllAnalysisCache } from '../analysis/analysisCache';
-import { loadToken, saveToken } from '../utils/configStore';
+import { loadAiKey, loadToken, saveAiKey, saveToken } from '../utils/configStore';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Props {
@@ -25,11 +25,12 @@ interface Props {
   onConfigChange: (patch: Partial<AppConfig>) => void;
 }
 
-type Section = 'appearance' | 'analysis' | 'data' | 'advanced';
+type Section = 'appearance' | 'analysis' | 'ai' | 'data' | 'advanced';
 
 const SECTIONS: { id: Section; labelKey: string }[] = [
   { id: 'appearance', labelKey: 'navAppearance' },
   { id: 'analysis', labelKey: 'analysisSection' },
+  { id: 'ai', labelKey: 'aiSection' },
   { id: 'data', labelKey: 'navData' },
   { id: 'advanced', labelKey: 'navAdvanced' },
 ];
@@ -74,6 +75,8 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
   const [section, setSection] = useState<Section>('appearance');
   const [token, setToken] = useState('');
   const [tokenSaved, setTokenSaved] = useState(false);
+  const [aiKey, setAiKey] = useState('');
+  const [aiKeySaved, setAiKeySaved] = useState(false);
   const [stats, setStats] = useState({ trees: 0, files: 0, analysis: 0 });
   const [cleared, setCleared] = useState(false);
 
@@ -81,6 +84,8 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
     if (!open) return;
     setToken(loadToken());
     setTokenSaved(false);
+    setAiKey(loadAiKey());
+    setAiKeySaved(false);
     setCleared(false);
     void (async () => {
       const s = await cacheStats();
@@ -213,6 +218,89 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
                   className="h-8 w-32 rounded border px-2 font-mono"
                   style={fieldStyle}
                 />
+              </>
+            )}
+
+            {section === 'ai' && (
+              <>
+                <Row label={t('aiProvider')}>
+                  <select
+                    data-ai-provider
+                    value={config.ai.provider}
+                    onChange={(e) =>
+                      onConfigChange({ ai: { ...config.ai, provider: e.target.value as AiProvider } })
+                    }
+                    className={selectClass}
+                    style={fieldStyle}
+                  >
+                    <option value="off">{t('aiProviderOff')}</option>
+                    <option value="ollama">{t('aiProviderOllama')}</option>
+                    <option value="openai">{t('aiProviderOpenai')}</option>
+                  </select>
+                </Row>
+
+                {config.ai.provider === 'off' ? (
+                  <p className="text-[11px] leading-5" style={{ color: 'var(--c-text-2)' }}>
+                    {t('aiOffHint')}
+                  </p>
+                ) : (
+                  <>
+                    <Row label={t('aiBaseUrl')}>
+                      <input
+                        data-ai-base-url
+                        value={config.ai.baseUrl}
+                        onChange={(e) => onConfigChange({ ai: { ...config.ai, baseUrl: e.target.value } })}
+                        placeholder={AI_DEFAULTS[config.ai.provider].baseUrl}
+                        className="h-8 w-[300px] rounded border px-2 font-mono text-xs"
+                        style={fieldStyle}
+                      />
+                    </Row>
+                    <Row label={t('aiModel')}>
+                      <input
+                        data-ai-model
+                        value={config.ai.model}
+                        onChange={(e) => onConfigChange({ ai: { ...config.ai, model: e.target.value } })}
+                        placeholder={AI_DEFAULTS[config.ai.provider].model}
+                        className="h-8 w-[300px] rounded border px-2 font-mono text-xs"
+                        style={fieldStyle}
+                      />
+                    </Row>
+
+                    {config.ai.provider === 'openai' && (
+                      <>
+                        <h3 className="mb-1 text-[13px] font-semibold">{t('aiApiKey')}</h3>
+                        <div className="mb-4 flex items-center gap-2">
+                          <input
+                            data-ai-key
+                            type="password"
+                            value={aiKey}
+                            onChange={(e) => {
+                              setAiKey(e.target.value);
+                              setAiKeySaved(false);
+                            }}
+                            placeholder="sk-..."
+                            className="h-8 min-w-0 flex-1 rounded border px-2 font-mono"
+                            style={fieldStyle}
+                          />
+                          <button
+                            onClick={() => {
+                              saveAiKey(aiKey.trim());
+                              setAiKeySaved(true);
+                            }}
+                            className="rounded px-3 py-1.5 text-white"
+                            style={{ background: 'var(--c-primary)' }}
+                          >
+                            {aiKeySaved ? t('saved') : t('save')}
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    <p className="text-[11px] leading-5" style={{ color: 'var(--c-text-2)' }}>
+                      {t('aiPrivacy')}
+                    </p>
+                  </>
+                )}
               </>
             )}
 

@@ -729,7 +729,7 @@ export default function ProjectView({
             )}
           </>
         ) : (
-          <span>CodeAtlas v2.0.0</span>
+          <span>CodeAtlas v{__APP_VERSION__}</span>
         )}
       </footer>
 
@@ -738,6 +738,7 @@ export default function ProjectView({
         pack={pack}
         generating={packGenerating}
         budget={config.maxTokens}
+        ai={config.ai}
         onGenerate={(budget) => void generatePack(budget)}
         onBudgetChange={(maxTokens) => onConfigChange({ maxTokens })}
         onClose={() => setPackOpen(false)}
