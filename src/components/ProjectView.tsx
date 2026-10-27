@@ -130,6 +130,16 @@ export default function ProjectView({
     [repo.tree],
   );
 
+  /**
+   * 当前文件字节数。
+   * 必须 memo：`new Blob([content])` 会复制整段文本，而本组件在分析进度更新时
+   * 会高频重渲染（每 progressStep 个文件一次），大文件会被反复复制几十次。
+   */
+  const activeSize = useMemo(
+    () => (active?.content != null ? new Blob([active.content]).size : null),
+    [active?.path, active?.content],
+  );
+
   /** 目录用途标注（供文件树图标与上下文包使用） */
   const dirPurposes = useMemo(() => annotateDirectories(repo.tree), [repo.tree]);
 
@@ -712,9 +722,9 @@ export default function ProjectView({
               </span>
             )}
             {active && <span className="truncate">{active.path}</span>}
-            {active?.content != null && (
+            {activeSize !== null && (
               <span>
-                {t('viewer:fileSize')}: {formatSize(new Blob([active.content]).size, i18n.language)}
+                {t('viewer:fileSize')}: {formatSize(activeSize, i18n.language)}
               </span>
             )}
           </>

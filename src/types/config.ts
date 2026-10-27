@@ -16,7 +16,10 @@ export type Language =
   | 'de'
   | 'pt'
   | 'ru';
-export type ThemeId = 'light' | 'dark' | 'system' | 'atlas';
+
+/** 主题 id 的单一来源（白名单校验、设置页选项都由它派生，避免各抄一份漏改） */
+export const THEME_IDS = ['light', 'dark', 'system', 'atlas'] as const;
+export type ThemeId = (typeof THEME_IDS)[number];
 
 export interface AppConfig {
   /** 首次启动由系统语言检测写入，之后启动只读不检测 */

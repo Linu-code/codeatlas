@@ -9,7 +9,7 @@
  * 避免把凭据明文落盘（配置文件可能被同步/备份）。
  */
 
-import { AppConfig, DEFAULT_CONFIG, Language, ThemeId } from '../types/config';
+import { AppConfig, DEFAULT_CONFIG, Language, THEME_IDS, ThemeId } from '../types/config';
 import { LANGUAGES } from '../i18n';
 import { invokeSafe, isTauri } from './tauri';
 
@@ -19,14 +19,13 @@ const LS_TOKEN_KEY = 'codeatlas.token';
 /** 合并并校验外部配置（防止手工改坏配置文件） */
 export function normalizeConfig(raw: unknown): AppConfig {
   const obj = (raw ?? {}) as Partial<AppConfig>;
-  const themes: ThemeId[] = ['light', 'dark', 'system', 'atlas'];
   const maxTokens = Number(obj.maxTokens);
   return {
     // 语言白名单取自 i18n 的单一来源，新增语言时不会再漏（曾硬编码为 zh/en/ja）
     language: LANGUAGES.includes(obj.language as Language)
       ? (obj.language as Language)
       : DEFAULT_CONFIG.language,
-    theme: themes.includes(obj.theme as ThemeId) ? (obj.theme as ThemeId) : DEFAULT_CONFIG.theme,
+    theme: THEME_IDS.includes(obj.theme as ThemeId) ? (obj.theme as ThemeId) : DEFAULT_CONFIG.theme,
     maxTokens:
       Number.isFinite(maxTokens) && maxTokens > 0 ? Math.min(maxTokens, 100_000) : DEFAULT_CONFIG.maxTokens,
     jsdelivrFallback: Boolean(obj.jsdelivrFallback),

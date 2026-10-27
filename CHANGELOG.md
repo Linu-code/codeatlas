@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### 修复（格式与预览的区域/覆盖缺口）
+
+- **十种语言里八种的数字格式错用 en-US**（`utils/format.ts`）：`localeOf` 只判断 `zh` / `ja`，`de` / `fr` / `es` / `pt` / `ru` / `ko` 全部落到 `en-US`。德语该显示 `1.234,5` 却显示 `1,234.5`。改为表驱动映射，且 `zh-TW` / `zh-HK` / `zh-Hant` 排在 `zh` 之前（否则被简体抢先匹配）。`formatSize` 的 KB/MB 小数分隔符原来硬编码 `.`，一并改为跟随区域（德语 `1,5 KB`）；非有限值或负数返回 `—` 而不是 `NaN`。
+- **7 种能高亮的扩展名被挡在预览之外**（`theme/themes.ts`）：`PREVIEWABLE_EXTS` 是手抄的独立列表，漏了 `sql` / `ini` / `xml` / `svg` / `vue` / `sh` / `bash` 等——这些在 `EXT_TO_PRISM` 里明明有语法包，打开却提示「不支持预览」。改为由 `EXT_TO_PRISM` 派生，杜绝两份列表脱节。
+- **状态栏文件大小每次渲染都重算**（`components/ProjectView.tsx`）：`new Blob([content]).size` 会复制整段文本，而分析进度每 N 个文件就触发一次重渲染，大文件被反复复制几十次。改为 `useMemo` 按文件内容缓存。
+- **主题白名单三处各抄一份**（`types/config.ts`）：新增 `THEME_IDS` 常量作为单一来源，`normalizeConfig` 与 `readSavedTheme` 改为引用它（原先各写一遍 `['light','dark','system','atlas']`，加主题必漏）。
+
 ### 清理（死代码与冗余）
 
 对全仓做了一次可达性 + 引用计数审计（106 个源文件 / 313 个导出 / 232 个 i18n 叶子键），删掉从未接线的部分：

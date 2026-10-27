@@ -12,7 +12,7 @@
  * 这样切换主题是纯 CSS 变量替换，零重渲染成本。
  */
 
-import type { ThemeId } from '../types/config';
+import { THEME_IDS, type ThemeId } from '../types/config';
 
 export type ResolvedTheme = 'light' | 'dark' | 'atlas-light' | 'atlas-dark';
 
@@ -60,8 +60,7 @@ export function applyTheme(theme: ThemeId): ResolvedTheme {
 export function readSavedTheme(): ThemeId | null {
   if (typeof localStorage === 'undefined') return null;
   const saved = localStorage.getItem(THEME_STORAGE_KEY);
-  const ids: string[] = ['light', 'dark', 'system', 'atlas'];
-  return saved && ids.includes(saved) ? (saved as ThemeId) : null;
+  return saved && (THEME_IDS as readonly string[]).includes(saved) ? (saved as ThemeId) : null;
 }
 
 export function saveTheme(theme: ThemeId): void {
@@ -131,13 +130,17 @@ export const EXT_TO_PRISM: Record<string, string> = {
   svg: 'markup',
 };
 
-/** 可预览的扩展名（对齐支持分析的语言全集，另有纯预览型如 md/json/yml） */
-export const PREVIEWABLE_EXTS = new Set([
-  'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx',
-  'py', 'go', 'rs', 'java', 'c', 'h', 'cpp', 'cc', 'cxx', 'hpp', 'hh', 'hxx',
-  'cs', 'php', 'phtml', 'kt', 'kts', 'swift', 'rb', 'rake', 'gemspec',
-  'md', 'markdown', 'json', 'yaml', 'yml', 'toml', 'txt', 'css', 'scss', 'html', 'htm', 'sh',
-]);
+/**
+ * 可预览的扩展名。
+ *
+ * 直接由 EXT_TO_PRISM 派生：凡是 Prism 能高亮的扩展名都应当能作为文本预览。
+ * 曾经手抄一份独立列表，结果 sql / ini / xml / svg / vue / sh 这些明明有语法包的
+ * 扩展名被漏在列表外，打开时显示「不支持预览」。
+ * `txt`（Prism 语言为 'none'）不在此列，由 useRepo 的 EXTRA_TEXT_EXTS 兜底。
+ */
+export const PREVIEWABLE_EXTS = new Set(
+  Object.keys(EXT_TO_PRISM).filter((ext) => EXT_TO_PRISM[ext] !== 'none'),
+);
 
 export function extOf(path: string): string {
   return path.split('.').pop()?.toLowerCase() ?? '';
