@@ -3,190 +3,705 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>CodeAtlas（码图）— 本地优先的代码理解与导航工具</title>
-<meta name="description" content="CodeAtlas：为开发者绘制可交互的代码地图。目录是地形，调用关系是道路，AI 上下文包是给智能助手的旅行指南。完全本地、免费、轻量、安全。" />
+<title>CodeAtlas（码图）— 为代码画一张可交互的地图</title>
+<meta name="description" content="CodeAtlas：本地优先的代码理解与导航工具。文件树、阅读路线、架构视图、调用图、代码度量、AI 上下文包与可选的 AI 解读。Windows 桌面应用，免费开源。" />
+<meta property="og:title" content="CodeAtlas（码图）— 为代码画一张可交互的地图" />
+<meta property="og:description" content="读懂一个陌生仓库所需的一切，放在同一个窗口里。Windows 桌面应用，免费开源。" />
 <style>
-  /* 文档站沿用产品的 Atlas Blue 色板 */
   :root {
-    --bg: #1b1d23;
-    --bg-2: #23262e;
-    --border: #2e323c;
-    --text: #e4e6eb;
-    --text-2: #9ba1ac;
+    --bg: #16181d;
+    --bg-2: #1d2027;
+    --bg-3: #24282f;
+    --border: #2c313a;
+    --text: #e6e8ec;
+    --text-2: #9aa1ad;
     --primary: #4a6cf7;
     --primary-hover: #5d7bff;
     --accent: #7c9eff;
     --success: #4ade80;
     --warning: #fbbf24;
+    --radius: 14px;
+    --ease: cubic-bezier(.16, 1, .3, 1);
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
-  header.hero { padding: 72px 0 40px; text-align: center; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- 顶部滚动进度 ---------- */
+  .progress {
+    position: fixed; inset: 0 auto auto 0; height: 2px; width: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    transform: scaleX(0); transform-origin: 0 50%;
+    z-index: 100; will-change: transform;
+  }
+
+  /* ---------- 导航 ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 90;
+    backdrop-filter: blur(14px);
+    background: rgba(22, 24, 29, .82);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-in {
+    max-width: 1120px; margin: 0 auto; padding: 12px 24px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.2px; }
+  .brand .dot {
+    width: 22px; height: 22px; border-radius: 7px;
+    background: linear-gradient(150deg, var(--primary), #2a3e96);
+    position: relative; flex: none;
+  }
+  .brand .dot::after {
+    content: ""; position: absolute; inset: 6px; border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,.75);
+  }
+  .nav-links { margin-left: auto; display: flex; gap: 18px; font-size: 13.5px; }
+  .nav-links a { color: var(--text-2); }
+  .nav-links a:hover { color: var(--text); text-decoration: none; }
+  @media (max-width: 700px) { .nav-links { display: none; } }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- Hero ---------- */
+  header.hero {
+    position: relative; overflow: hidden;
+    padding: 96px 0 72px; text-align: center;
+  }
+  .hero-bg {
+    position: absolute; inset: -40% -10% auto -10%; height: 140%;
+    pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(560px 340px at 50% 18%, rgba(74,108,247,.28), transparent 70%),
+      radial-gradient(420px 260px at 18% 46%, rgba(124,158,255,.14), transparent 70%),
+      radial-gradient(380px 240px at 82% 34%, rgba(74,108,247,.12), transparent 70%);
+    will-change: transform;
+  }
+  .hero-grid {
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(circle at 50% 30%, #000 0%, transparent 72%);
+    -webkit-mask-image: radial-gradient(circle at 50% 30%, #000 0%, transparent 72%);
+  }
+  .hero > * { position: relative; z-index: 1; }
   .logo {
-    width: 88px; height: 88px; margin: 0 auto 20px;
-    border-radius: 22px;
-    background: linear-gradient(180deg, #4a6cf7, #2a3e96);
+    width: 84px; height: 84px; margin: 0 auto 26px; border-radius: 22px;
+    background: linear-gradient(180deg, #4a6cf7, #22307a);
     position: relative;
+    box-shadow: 0 18px 50px -12px rgba(74,108,247,.55), inset 0 1px 0 rgba(255,255,255,.14);
   }
-  /* 用一个纯 CSS 的"节点-连线"标志呼应应用图标 */
-  .logo::before, .logo::after {
-    content: ""; position: absolute; background: #e4e6eb; border-radius: 50%;
+  .logo::before, .logo::after { content: ""; position: absolute; border-radius: 50%; background: #fff; }
+  .logo::before { width: 11px; height: 11px; left: 17px; top: 21px; box-shadow: 44px 26px 0 #fff, 8px 44px 0 #e4e6eb, 56px 8px 0 #e4e6eb; }
+  .logo::after { width: 66px; height: 3px; left: 10px; top: 44px; background: var(--accent); transform: rotate(30deg); border-radius: 2px; }
+  h1 {
+    font-size: clamp(32px, 5.4vw, 54px); line-height: 1.15;
+    margin: 0 0 14px; letter-spacing: -1.4px; font-weight: 700;
   }
-  .logo::before { width: 14px; height: 14px; left: 18px; top: 22px; box-shadow: 44px 26px 0 #fff, 8px 44px 0 #e4e6eb, 58px 6px 0 #e4e6eb; }
-  .logo::after { width: 70px; height: 4px; left: 9px; top: 44px; background: #7c9eff; transform: rotate(30deg); border-radius: 2px; }
-  h1 { font-size: 40px; margin: 0 0 8px; letter-spacing: -0.5px; }
-  .sub { color: var(--text-2); font-size: 16px; max-width: 720px; margin: 0 auto; }
-  .cta { margin-top: 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  h1 .thin { color: var(--text-2); font-weight: 400; font-size: .55em; letter-spacing: 0; }
+  .lede {
+    font-size: clamp(15px, 1.9vw, 18px); color: var(--text-2);
+    max-width: 700px; margin: 0 auto 8px;
+  }
+  .lede strong { color: var(--text); font-weight: 600; }
+  .badges { margin: 24px 0 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 13px; border-radius: 999px; font-size: 12.5px;
+    border: 1px solid var(--border); background: var(--bg-2); color: var(--text-2);
+  }
+  .tag.green { border-color: rgba(74,222,128,.32); color: var(--success); background: rgba(74,222,128,.08); }
+  .tag.blue { border-color: rgba(124,158,255,.32); color: var(--accent); background: rgba(124,158,255,.08); }
+  .tag.amber { border-color: rgba(251,191,36,.3); color: var(--warning); background: rgba(251,191,36,.07); }
+  .cta { margin-top: 30px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
   .btn {
-    display: inline-block; padding: 10px 20px; border-radius: 8px; text-decoration: none;
-    font-size: 14px; border: 1px solid var(--border); color: var(--text);
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 24px; border-radius: 10px; font-size: 14.5px; font-weight: 550;
+    border: 1px solid var(--border); color: var(--text); background: var(--bg-2);
+    transition: transform .25s var(--ease), border-color .25s, background .25s;
   }
-  .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-  .btn.primary:hover { background: var(--primary-hover); }
-  .btn:hover { border-color: var(--primary); }
-  section { padding: 40px 0; border-top: 1px solid var(--border); }
-  h2 { font-size: 22px; margin: 0 0 16px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .btn:hover { text-decoration: none; transform: translateY(-2px); border-color: var(--primary); }
+  .btn.primary {
+    background: var(--primary); border-color: var(--primary); color: #fff;
+    box-shadow: 0 12px 30px -12px rgba(74,108,247,.7);
+  }
+  .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+
+  /* ---------- 统计 ---------- */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px; background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; margin: 8px 0 0;
+  }
+  .stat { background: var(--bg-2); padding: 26px 18px; text-align: center; }
+  .stat .n {
+    font-size: clamp(26px, 3.4vw, 36px); font-weight: 700; letter-spacing: -1px;
+    color: var(--text); font-variant-numeric: tabular-nums;
+  }
+  .stat .n em { font-style: normal; color: var(--primary); }
+  .stat .l { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+
+  /* ---------- 章节 ---------- */
+  section { padding: 78px 0; position: relative; }
+  .sec-head { margin-bottom: 34px; }
+  .sec-no {
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    color: var(--primary); letter-spacing: 2px; margin-bottom: 8px;
+  }
+  h2 {
+    font-size: clamp(24px, 3.2vw, 34px); margin: 0 0 10px;
+    letter-spacing: -.8px; font-weight: 650;
+  }
+  .sec-sub { color: var(--text-2); font-size: 15px; max-width: 680px; margin: 0; }
+
+  /* ---------- 卡片 ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
   .card {
-    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
-    padding: 18px 20px;
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; position: relative; overflow: hidden;
+    transition: transform .35s var(--ease), border-color .35s, background .35s;
   }
-  .card h3 { margin: 0 0 6px; font-size: 15px; }
-  .card p { margin: 0; color: var(--text-2); font-size: 13.5px; }
-  .shot { width: 100%; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; }
+  .card::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    background: radial-gradient(360px 200px at var(--mx, 50%) var(--my, 0%), rgba(74,108,247,.12), transparent 70%);
+    opacity: 0; transition: opacity .35s;
+  }
+  .card:hover { transform: translateY(-3px); border-color: rgba(74,108,247,.5); background: var(--bg-3); }
+  .card:hover::after { opacity: 1; }
+  .card .ico { font-size: 20px; line-height: 1; margin-bottom: 12px; display: block; }
+  .card h3 { margin: 0 0 7px; font-size: 15.5px; font-weight: 620; letter-spacing: -.2px; }
+  .card p { margin: 0; color: var(--text-2); font-size: 13.5px; line-height: 1.7; }
+  .card code {
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    background: rgba(124,158,255,.1); color: var(--accent);
+    padding: 1px 5px; border-radius: 4px;
+  }
+  .card.feature { grid-column: span 2; }
+  @media (max-width: 760px) { .card.feature { grid-column: span 1; } }
+
+  /* ---------- 截图 ---------- */
+  .shots { display: grid; gap: 18px; }
+  .shot {
+    position: relative; border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--border); background: var(--bg-2);
+    box-shadow: 0 24px 60px -30px rgba(0,0,0,.9);
+  }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot figcaption {
+    padding: 10px 16px; font-size: 12.5px; color: var(--text-2);
+    border-top: 1px solid var(--border); background: var(--bg-2);
+  }
+  .shot-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 760px) { .shot-pair { grid-template-columns: 1fr; } }
+
+  /* ---------- AI 专区 ---------- */
+  .ai-panel {
+    border: 1px solid rgba(74,108,247,.32); border-radius: 18px;
+    background:
+      radial-gradient(700px 320px at 12% 0%, rgba(74,108,247,.14), transparent 68%),
+      var(--bg-2);
+    padding: 34px;
+  }
+  .ai-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 26px; }
+  .step { position: relative; padding-left: 42px; }
+  .step .idx {
+    position: absolute; left: 0; top: 0;
+    width: 28px; height: 28px; border-radius: 9px;
+    display: grid; place-items: center; font-size: 12.5px; font-weight: 650;
+    background: rgba(74,108,247,.16); color: var(--accent);
+    border: 1px solid rgba(74,108,247,.35);
+  }
+  .step h4 { margin: 0 0 4px; font-size: 14px; font-weight: 620; }
+  .step p { margin: 0; font-size: 13px; color: var(--text-2); }
+  .ai-note {
+    margin-top: 24px; padding: 14px 16px; border-radius: 10px;
+    background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.24);
+    color: var(--text-2); font-size: 13px;
+  }
+  .ai-note strong { color: var(--warning); }
+
+  /* ---------- 表格 / 代码 ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; overflow: hidden; border-radius: 12px; }
+  th, td { border-bottom: 1px solid var(--border); padding: 12px 16px; text-align: left; vertical-align: top; }
+  th { background: var(--bg-2); font-weight: 600; font-size: 12.5px; color: var(--text-2); letter-spacing: .3px; }
+  tr:last-child td { border-bottom: none; }
+  td code, .code-note code {
+    font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    background: rgba(124,158,255,.1); color: var(--accent); padding: 1px 5px; border-radius: 4px;
+  }
   pre {
-    background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px;
-    padding: 16px; overflow-x: auto; font-size: 13px;
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; font-size: 13px; line-height: 1.85; margin: 0;
   }
-  code { font-family: Consolas, "Cascadia Mono", monospace; }
-  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; margin: 0 6px 6px 0; }
-  .tag.green { background: rgba(74, 222, 128, 0.14); color: var(--success); }
-  .tag.blue { background: rgba(124, 158, 255, 0.16); color: var(--accent); }
-  .tag.amber { background: rgba(251, 191, 36, 0.14); color: var(--warning); }
-  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
-  th { background: var(--bg-2); }
-  a { color: var(--accent); }
-  footer { padding: 32px 0 48px; color: var(--text-2); font-size: 13px; text-align: center; border-top: 1px solid var(--border); }
+  pre code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; color: #c9d1d9; }
+  .cmt { color: #6b7280; }
+
+  /* ---------- 时间线 ---------- */
+  .timeline { position: relative; padding-left: 26px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 7px; top: 6px; bottom: 6px; width: 2px;
+    background: linear-gradient(180deg, var(--primary), transparent);
+  }
+  .tl-item { position: relative; padding: 0 0 26px 8px; }
+  .tl-item::before {
+    content: ""; position: absolute; left: -25px; top: 8px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--primary);
+  }
+  .tl-item:last-child { padding-bottom: 0; }
+  .tl-item .v { font-size: 13px; color: var(--accent); font-weight: 650; letter-spacing: .4px; }
+  .tl-item .d { font-size: 13.5px; color: var(--text-2); margin-top: 2px; }
+
+  /* ---------- 约束 ---------- */
+  .safe { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .safe .card { border-color: rgba(74,222,128,.18); }
+  .safe .card:hover { border-color: rgba(74,222,128,.45); }
+
+  footer {
+    padding: 44px 0 60px; color: var(--text-2); font-size: 13px;
+    border-top: 1px solid var(--border); text-align: center;
+  }
+  footer .links { display: flex; gap: 18px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+
+  /* ---------- 滚动入场 ---------- */
+  [data-reveal] {
+    opacity: 0; transform: translateY(26px);
+    transition: opacity .8s var(--ease), transform .8s var(--ease);
+    transition-delay: var(--d, 0ms);
+  }
+  [data-reveal].in { opacity: 1; transform: none; }
+  [data-reveal].zoom { transform: translateY(26px) scale(.985); }
+  [data-reveal].zoom.in { transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    [data-reveal], [data-reveal].zoom { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .hero-bg { transform: none !important; }
+    .card:hover, .btn:hover { transform: none; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="progress" id="progress" aria-hidden="true"></div>
 
-  <header class="hero">
+<nav>
+  <div class="nav-in">
+    <a class="brand" href="#top"><span class="dot" aria-hidden="true"></span>CodeAtlas</a>
+    <div class="nav-links">
+      <a href="#features">功能</a>
+      <a href="#ai">AI 解读</a>
+      <a href="#shots">界面</a>
+      <a href="#privacy">隐私</a>
+      <a href="#install">安装</a>
+      <a href="https://github.com/Linu-code/codeatlas">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="hero-bg" id="heroBg" aria-hidden="true"></div>
+  <div class="hero-grid" aria-hidden="true"></div>
+  <div class="wrap">
     <div class="logo" aria-hidden="true"></div>
-    <h1>CodeAtlas<span style="color:var(--text-2);font-size:20px;">（码图）</span></h1>
-    <p class="sub">
-      为开发者绘制一张可交互的代码地图：<strong>目录是地形，调用关系是道路，阅读路线是导航，AI 上下文包是给智能助手的旅行指南。</strong>
+    <h1>CodeAtlas <span class="thin">（码图）</span></h1>
+    <p class="lede">
+      为代码画一张<strong>可交互的地图</strong>：目录是地形，调用关系是道路，
+      阅读路线是导航，上下文包是交给模型的旅行指南。
     </p>
-    <p class="sub" style="margin-top:10px;">
-      <span class="tag green">完全本地运行</span>
-      <span class="tag green">零 AI 调用</span>
-      <span class="tag blue">免费开源</span>
-      <span class="tag blue">约 3 MB 安装包</span>
-      <span class="tag amber">支持完全断网内网环境</span>
+    <p class="lede" style="margin-top:10px;font-size:15px;">
+      读懂一个陌生仓库所需的一切，放在同一个窗口里。全部由确定性静态分析得出，可离线、可复现。
     </p>
+    <div class="badges">
+      <span class="tag green">本地优先 · 零上传</span>
+      <span class="tag green">默认不调用任何 AI</span>
+      <span class="tag blue">Windows 桌面版</span>
+      <span class="tag blue">安装包 4.9 MB</span>
+      <span class="tag amber">支持完全断网环境</span>
+    </div>
     <div class="cta">
-      <a class="btn primary" href="https://github.com/Linu-code/codeatlas/releases">下载 Windows 版</a>
+      <a class="btn primary" href="https://github.com/Linu-code/codeatlas/releases">下载 v3.0（Windows）</a>
       <a class="btn" href="https://github.com/Linu-code/codeatlas">查看源码</a>
     </div>
-  </header>
+  </div>
+</header>
 
-  <section>
-    <h2>它做什么</h2>
+<div class="wrap">
+  <div class="stats" data-reveal>
+    <div class="stat"><div class="n"><em data-count="14">14</em></div><div class="l">tree-sitter 语法包</div></div>
+    <div class="stat"><div class="n"><em data-count="10">10</em></div><div class="l">种界面语言</div></div>
+    <div class="stat"><div class="n"><em data-count="7">7</em></div><div class="l">个分析面板</div></div>
+    <div class="stat"><div class="n"><em data-count="5000">5000</em></div><div class="l">单次分析文件上限</div></div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="sec-no">01 — CAPABILITIES</div>
+      <h2>十一块面板，覆盖「读懂一个仓库」的每一步</h2>
+      <p class="sec-sub">
+        没有 AI 也能独立工作：AST 解析 + 启发式规则 + 图算法，全部在本地跑完。
+      </p>
+    </div>
+
     <div class="grid">
-      <div class="card">
-        <h3>📁 文件树导航</h3>
-        <p>折叠、过滤，并按规则自动标注目录用途（<code>src/</code> → 源代码、<code>.github/</code> → CI 配置…）。</p>
+      <div class="card" data-reveal>
+        <span class="ico">📁</span>
+        <h3>文件树导航</h3>
+        <p>折叠、按名过滤，并自动标注目录用途（<code>src/</code> → 源代码、<code>.github/</code> → CI 配置）。30 条规则 + 内容启发式，不靠猜。</p>
       </div>
-      <div class="card">
-        <h3>📊 调用关系图</h3>
-        <p>基于 tree-sitter 真实语法树构建函数级调用图，可导出 SVG / PNG，也可复制 Mermaid 代码。</p>
+      <div class="card" data-reveal>
+        <span class="ico">🧭</span>
+        <h3>阅读路线</h3>
+        <p>自动排「先读哪几个文件」：入口 → 枢纽 → 中间层 → 末端。依赖图跑 PageRank，树节点带序号角标。</p>
       </div>
-      <div class="card">
-        <h3>🧭 跨文件跳转</h3>
-        <p><code>Ctrl/Cmd + 单击</code> 或 <code>F12</code> 转到定义，一键列出全部引用位置（文件:行号）。</p>
+      <div class="card" data-reveal>
+        <span class="ico">⌨️</span>
+        <h3>命令面板</h3>
+        <p><code>Ctrl+K</code> 统一入口，命令 / 文件 / 符号一起模糊搜索；<code>Ctrl+T</code> 直接跳到符号定义。自研子序列匹配，零依赖。</p>
       </div>
-      <div class="card">
-        <h3>📈 代码度量</h3>
-        <p>圈复杂度、认知复杂度、SLOC 与项目健康评分，单次 AST 遍历算出全部指标。</p>
+      <div class="card" data-reveal>
+        <span class="ico">🏛️</span>
+        <h3>架构视图</h3>
+        <p>模块级依赖图、<strong>循环依赖检测</strong>（Tarjan 强连通分量）、类图（继承 / 实现）、按用途分层。</p>
       </div>
-      <div class="card">
-        <h3>🎒 AI 上下文包</h3>
-        <p>PageRank 排序 + token 预算裁剪，一键生成给 Cursor / Trae / WorkBuddy 的项目摘要。</p>
+      <div class="card" data-reveal>
+        <span class="ico">📊</span>
+        <h3>调用关系图</h3>
+        <p>函数级调用图，按文件分组；导出 SVG / PNG，或复制 Mermaid 源码贴进任何文档。同名符号多义时宁可少连，不乱连。</p>
       </div>
-      <div class="card">
-        <h3>🔍 全局搜索</h3>
-        <p>Web Worker 中执行正则搜索，10 秒超时自动终止，搜索再大也不卡界面。</p>
+      <div class="card" data-reveal>
+        <span class="ico">🎯</span>
+        <h3>跨文件跳转</h3>
+        <p><code>Ctrl+单击</code> 或 <code>F12</code> 转到定义，一键列出全部引用位置（文件:行号）。自研 scope graph 索引。</p>
+      </div>
+      <div class="card" data-reveal>
+        <span class="ico">📈</span>
+        <h3>代码度量</h3>
+        <p>圈复杂度（McCabe）、认知复杂度（SonarSource 口径）、SLOC、健康评分。单次 AST 遍历算出全部指标，嵌套闭包不重复计。</p>
+      </div>
+      <div class="card" data-reveal>
+        <span class="ico">⚡</span>
+        <h3>增量分析</h3>
+        <p>分析结果按文件内容哈希存进 IndexedDB。二次打开同一仓库<strong>跳过 AST 解析直接复用</strong>，状态栏显示命中数。</p>
+      </div>
+      <div class="card" data-reveal>
+        <span class="ico">🔍</span>
+        <h3>全局搜索</h3>
+        <p>正则搜索跑在 Web Worker 里，10 秒超时自动终止；再大的仓库也不卡界面。</p>
+      </div>
+      <div class="card" data-reveal>
+        <span class="ico">🗂️</span>
+        <h3>多项目工作区</h3>
+        <p>一个窗口开多个项目，标签切换，各自的浏览状态与分析结果互不干扰；重启后自动恢复上次的项目。</p>
+      </div>
+      <div class="card" data-reveal>
+        <span class="ico">📄</span>
+        <h3>HTML 报告导出</h3>
+        <p>把分析结果导出成单文件 HTML：内联样式与 SVG 图，直接发给人看，不需要对方装任何东西。</p>
+      </div>
+      <div class="card feature" data-reveal>
+        <span class="ico">🎒</span>
+        <h3>AI 上下文包</h3>
+        <p>
+          一键生成 token 预算内的项目摘要：概览 / 构建与运行 + 技术栈（读 <code>package.json</code>）/
+          模块地图 / 阅读路线 / 核心符号签名 / 关键调用关系。按 PageRank 排序后用二分裁剪到预算内，
+          对话框内置 2k / 8k / 32k / 64k 预设。可直接复制给 Cursor、Trae、WorkBuddy 等工具，
+          <strong>也可以在本应用内直接交给模型解读</strong>。
+        </p>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <section>
-    <h2>界面预览</h2>
-    <img class="shot" src="screenshots/main.png" alt="CodeAtlas 主界面" />
-    <div class="grid">
-      <img class="shot" src="screenshots/callgraph.png" alt="调用关系图" />
-      <img class="shot" src="screenshots/metrics.png" alt="代码度量" />
+<section id="ai">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="sec-no">02 — OPTIONAL AI</div>
+      <h2>3.0 新增：把上下文包交给模型，读一份「项目导读」</h2>
+      <p class="sec-sub">
+        不是聊天框套壳。模型拿到的是已经结构化、按重要性排过序的上下文，而不是一堆原始文件。
+      </p>
     </div>
-    <img class="shot" src="screenshots/context-pack.png" alt="AI 上下文包" />
-  </section>
 
-  <section>
-    <h2>三种输入方式</h2>
-    <table>
-      <tr><th>输入</th><th>用法</th></tr>
-      <tr><td>GitHub 网址</td><td><code>https://github.com/facebook/react</code>（也支持 <code>/tree/branch/subdir</code>）</td></tr>
-      <tr><td>仓库简写</td><td><code>facebook/react</code></td></tr>
-      <tr><td>仓库名搜索</td><td>输入 <code>react</code> 回车，下拉前 10 条结果，方向键选择</td></tr>
-      <tr><td>本地 ZIP</td><td>点击「打开本地 ZIP」，或直接把 <code>.zip</code> 拖入窗口（每个 ZIP 一个独立窗口）</td></tr>
-    </table>
-  </section>
+    <div class="ai-panel" data-reveal>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
+        <div>
+          <h3 style="margin:0 0 8px;font-size:16px;">双通道，任选其一</h3>
+          <p style="margin:0 0 14px;color:var(--text-2);font-size:13.5px;">
+            <strong style="color:var(--text)">本地 Ollama</strong>：默认 <code>127.0.0.1:11434</code>，代码不出本机，断网可用。<br>
+            <strong style="color:var(--text)">OpenAI 兼容 API</strong>：OpenAI、DeepSeek 或任何自建网关，填 baseURL + 模型名即可。
+          </p>
+          <p style="margin:0;color:var(--text-2);font-size:13.5px;">
+            两条通道都是手写的流式解析（NDJSON / SSE），<strong>不引入任何 SDK</strong>，安装包体积不变。
+          </p>
+        </div>
+        <div>
+          <h3 style="margin:0 0 8px;font-size:16px;">输出固定四段</h3>
+          <p style="margin:0;color:var(--text-2);font-size:13.5px;">
+            ① 这个项目在做什么　② 模块分工　③ 新人阅读顺序（5–8 个文件 + 为什么）④ 风险点（循环依赖、巨型函数）。
+            指令里明确要求<strong>不得编造上下文里没有的文件和依赖</strong>。
+          </p>
+        </div>
+      </div>
 
-  <section>
-    <h2>安装</h2>
-    <p style="color:var(--text-2);font-size:14px;">
-      下载 <a href="https://github.com/Linu-code/codeatlas/releases">Releases</a> 中的安装包双击安装即可，
-      无需安装 Node.js 或 Rust。Windows 10（1803+）/ 11 已内置 WebView2 运行时。
-    </p>
-  </section>
+      <div class="ai-steps">
+        <div class="step" data-reveal><span class="idx">1</span><h4>打开 AI 上下文包</h4><p>分析面板里生成，按预算裁剪完成</p></div>
+        <div class="step" data-reveal><span class="idx">2</span><h4>点「AI 解读」</h4><p>流式输出，可随时停止</p></div>
+        <div class="step" data-reveal><span class="idx">3</span><h4>复制或继续用</h4><p>结果可复制，也可留在面板里对照</p></div>
+      </div>
 
-  <section>
-    <h2>从源码构建</h2>
-<pre><code>git clone https://github.com/Linu-code/codeatlas.git
+      <div class="ai-note">
+        <strong>默认关闭。</strong>不配置就不发任何请求——「零后台外部请求」这条约束没有变。
+        API Key 只存本机 localStorage，不写进配置文件、不进日志。配置位置：设置 → AI 助手。
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="shots">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="sec-no">03 — SCREENSHOTS</div>
+      <h2>界面</h2>
+      <p class="sec-sub">截图由 E2E 测试自动生成，所以和当前版本始终一致。</p>
+    </div>
+
+    <div class="shots">
+      <figure class="shot" data-reveal>
+        <img src="screenshots/main.png" alt="CodeAtlas 主界面：文件树、代码视图与状态栏" loading="lazy" />
+        <figcaption>主界面 —— 左侧文件树带目录用途标注，右侧代码视图与状态栏</figcaption>
+      </figure>
+
+      <div class="shot-pair">
+        <figure class="shot zoom" data-reveal>
+          <img src="screenshots/architecture-modules.png" alt="架构视图：模块依赖图与分层" loading="lazy" />
+          <figcaption>架构视图 —— 模块依赖 + 按用途分层 + 循环依赖</figcaption>
+        </figure>
+        <figure class="shot zoom" data-reveal>
+          <img src="screenshots/callgraph.png" alt="调用关系图" loading="lazy" />
+          <figcaption>调用关系图 —— 函数级调用，可导出 SVG / PNG</figcaption>
+        </figure>
+      </div>
+
+      <div class="shot-pair">
+        <figure class="shot zoom" data-reveal>
+          <img src="screenshots/metrics.png" alt="代码度量：复杂度与健康评分" loading="lazy" />
+          <figcaption>代码度量 —— 圈复杂度 / 认知复杂度 / 健康评分</figcaption>
+        </figure>
+        <figure class="shot zoom" data-reveal>
+          <img src="screenshots/reading-path.png" alt="阅读路线" loading="lazy" />
+          <figcaption>阅读路线 —— 入口、枢纽、中间层、末端</figcaption>
+        </figure>
+      </div>
+
+      <figure class="shot" data-reveal>
+        <img src="screenshots/context-pack.png" alt="AI 上下文包" loading="lazy" />
+        <figcaption>AI 上下文包 —— 预算内按重要性排序的项目摘要</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="inputs">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="sec-no">04 — INPUTS</div>
+      <h2>四种打开方式</h2>
+    </div>
+    <div data-reveal>
+      <table>
+        <tr><th style="width:170px">输入</th><th>用法</th></tr>
+        <tr><td>GitHub 网址</td><td><code>https://github.com/facebook/react</code> —— 也支持 <code>/tree/分支/子目录</code>、<code>.git</code> 结尾与 SSH 形态</td></tr>
+        <tr><td>仓库简写</td><td><code>facebook/react</code>，默认分支直接加载</td></tr>
+        <tr><td>仓库名搜索</td><td>输入 <code>react</code> 回车，下拉按 star 排序的前 10 条，方向键选择</td></tr>
+        <tr><td>本地 ZIP / 目录</td><td>拖入 <code>.zip</code> 或文件夹（桌面端），每个开一个独立窗口；ZIP 解压前做路径穿越校验</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="sec-no">05 — PRIVACY</div>
+      <h2>约束是写在代码里的</h2>
+      <p class="sec-sub">不是「我们承诺不上传」，而是网络白名单在代码层拦住了。</p>
+    </div>
+    <div class="safe">
+      <div class="card" data-reveal><span class="ico">🔒</span><h3>零上传</h3><p>不收集数据、不上传文件。ZIP 解压前校验每条路径，拒绝 <code>../</code>、绝对路径、UNC 与 Windows 保留名。</p></div>
+      <div class="card" data-reveal><span class="ico">🌐</span><h3>域名白名单</h3><p>仓库数据只允许 <code>api.github.com</code> 与 <code>raw.githubusercontent.com</code>，CSP 与代码双层强制。</p></div>
+      <div class="card" data-reveal><span class="ico">🤖</span><h3>AI 默认关闭</h3><p>只有你在「设置 → AI 助手」里显式配置、并点击「AI 解读」时才发请求；不配置就一条请求都没有。</p></div>
+      <div class="card" data-reveal><span class="ico">🔌</span><h3>离线可用</h3><p>本地 ZIP 加载后全部功能可用（AI 除外，需本地模型），适合完全断网的内网环境。</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="versions">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="sec-no">06 — ROADMAP</div>
+      <h2>版本演进</h2>
+    </div>
+    <div class="timeline">
+      <div class="tl-item" data-reveal>
+        <div class="v">v3.0 · 当前</div>
+        <div class="d">AI 解读（本地 Ollama / OpenAI 兼容双通道）；10 语言区域格式、可预览扩展名、依赖解析的多处缺陷收口。</div>
+      </div>
+      <div class="tl-item" data-reveal>
+        <div class="v">v2.0</div>
+        <div class="d">12 个语言族解析、工作区与增量分析、阅读路线 / 命令面板 / 架构视图、本地目录源、HTML 报告、多项目工作区。</div>
+      </div>
+      <div class="tl-item" data-reveal>
+        <div class="v">v1.0</div>
+        <div class="d">Windows 桌面版、GitHub 与本地 ZIP 两种来源、JS/TS/Python 基础分析。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <div class="sec-head" data-reveal>
+      <div class="sec-no">07 — GET STARTED</div>
+      <h2>安装</h2>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start;">
+      <div data-reveal>
+        <p style="color:var(--text-2);font-size:14px;margin:0 0 14px;">
+          下载 <a href="https://github.com/Linu-code/codeatlas/releases">Releases</a> 里的
+          <code>CodeAtlas_3.0.0_x64-setup.exe</code> 双击安装，
+          或用免安装的绿色单文件 <code>CodeAtlas.exe</code>。
+          <strong>无需安装 Node.js 或 Rust。</strong>
+        </p>
+        <p style="color:var(--text-2);font-size:13.5px;margin:0;">
+          Windows 10（1803+）/ Windows 11 已内置 WebView2 运行时；更早的系统需单独安装 WebView2。
+          仅发布 Windows 版本，暂无 macOS / Linux 构建。
+        </p>
+      </div>
+      <div data-reveal>
+<pre><code><span class="cmt"># 从源码运行</span>
+git clone https://github.com/Linu-code/codeatlas.git
 cd codeatlas
 npm install
-npm run dev            # 浏览器模式
-npm run tauri dev      # 桌面模式（需 Rust 工具链）
-npm run build:exe      # 打包 exe（产物落到仓库根目录）</code></pre>
-    <p style="color:var(--text-2);font-size:13.5px;">
-      构建 exe 需要一次性安装 Rust（MSVC 工具链）与 Visual Studio C++ 生成工具，详见
-      <a href="https://github.com/Linu-code/codeatlas#方式三打包成-exe">README</a>。
-    </p>
-  </section>
 
-  <section>
-    <h2>硬性约束</h2>
-    <div class="grid">
-      <div class="card"><h3>🚫 零 AI</h3><p>不调用任何 LLM / AI API / 本地模型；解读能力全部来自确定性静态分析与模板。</p></div>
-      <div class="card"><h3>🔒 零上传</h3><p>不收集数据、不上传文件；ZIP 解压前做路径穿越校验（拒绝 <code>../</code>、绝对路径、UNC）。</p></div>
-      <div class="card"><h3>🌐 网络白名单</h3><p>默认只访问 <code>api.github.com</code> 与 <code>raw.githubusercontent.com</code>，CSP 与代码双层强制。</p></div>
-      <div class="card"><h3>🔌 离线可用</h3><p>上传本地 ZIP 后全功能可用，适合完全断网的内网环境。</p></div>
+npm run dev         <span class="cmt"># 浏览器模式</span>
+npm run tauri dev   <span class="cmt"># 桌面模式（需 Rust 工具链）</span>
+npm run build:exe   <span class="cmt"># 打包 exe + 安装包</span></code></pre>
+      </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <footer>
-    MIT License · CodeAtlas contributors ·
-    <a href="PLAN.md">项目计划</a>
-  </footer>
+<footer>
+  <div class="links">
+    <a href="https://github.com/Linu-code/codeatlas">源码</a>
+    <a href="https://github.com/Linu-code/codeatlas/releases">发布版本</a>
+    <a href="https://github.com/Linu-code/codeatlas/blob/main/CHANGELOG.md">更新日志</a>
+    <a href="https://github.com/Linu-code/codeatlas/blob/main/docs/PLAN-2.0.md">版本规划</a>
+  </div>
+  MIT License · CodeAtlas contributors
+</footer>
 
-</div>
+<script>
+(function () {
+  'use strict';
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- 滚动进度 + hero 视差（同一个 rAF 帧里处理） ----------
+  var bar = document.getElementById('progress');
+  var heroBg = document.getElementById('heroBg');
+  var ticking = false;
+
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () {
+      var doc = document.documentElement;
+      var max = doc.scrollHeight - doc.clientHeight;
+      var y = window.scrollY || doc.scrollTop;
+      if (bar) bar.style.transform = 'scaleX(' + (max > 0 ? y / max : 0) + ')';
+      if (heroBg && !reduce && y < 1200) {
+        heroBg.style.transform = 'translate3d(0,' + (y * 0.22) + 'px,0)';
+      }
+      ticking = false;
+    });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  // ---------- 逐段入场 ----------
+  var items = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+
+  if (reduce || !('IntersectionObserver' in window)) {
+    items.forEach(function (el) { el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('in');
+        io.unobserve(entry.target);
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+
+    items.forEach(function (el, i) {
+      // 同屏内的元素错开入场，避免整块同时出现显得死板
+      el.style.setProperty('--d', (i % 6) * 55 + 'ms');
+      io.observe(el);
+    });
+  }
+
+  // ---------- 数字滚动 ----------
+  var nums = Array.prototype.slice.call(document.querySelectorAll('[data-count]'));
+  function countUp(el) {
+    var target = Number(el.getAttribute('data-count')) || 0;
+    if (reduce) { el.textContent = String(target); return; }
+    var start = performance.now();
+    var dur = 1100;
+    function step(now) {
+      var k = Math.min(1, (now - start) / dur);
+      var eased = 1 - Math.pow(1 - k, 3);
+      el.textContent = Math.round(target * eased).toLocaleString('en-US');
+      if (k < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  if ('IntersectionObserver' in window) {
+    var io2 = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        countUp(entry.target);
+        io2.unobserve(entry.target);
+      });
+    }, { threshold: 0.4 });
+    nums.forEach(function (el) { io2.observe(el); });
+  } else {
+    nums.forEach(countUp);
+  }
+
+  // ---------- 卡片跟随光标的高光 ----------
+  if (!reduce) {
+    document.querySelectorAll('.card').forEach(function (card) {
+      card.addEventListener('pointermove', function (e) {
+        var r = card.getBoundingClientRect();
+        card.style.setProperty('--mx', ((e.clientX - r.left) / r.width) * 100 + '%');
+        card.style.setProperty('--my', ((e.clientY - r.top) / r.height) * 100 + '%');
+      });
+    });
+  }
+})();
+</script>
 </body>
 </html>
