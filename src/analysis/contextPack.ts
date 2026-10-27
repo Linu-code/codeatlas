@@ -363,8 +363,10 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
 
     if (manifest.deps.length || manifest.devDeps.length) {
       headerParts.push('## 技术栈', '');
-      if (manifest.deps.length) headerParts.push(`- 运行时依赖：${manifest.deps.join(', ')}`);
-      if (manifest.devDeps.length) headerParts.push(`- 开发依赖：${manifest.devDeps.join(', ')}`);
+      // 依赖名只给前若干个：完整列表在预算紧张时会挤掉"符号 / 目录结构"这类真正需要的信息，
+      // AI 判断技术栈只需要认出 React/Vite/Flask 这几个标志，不需要读完 40 个 @types/*。
+      if (manifest.deps.length) headerParts.push(`- 运行时依赖：${clipList(manifest.deps)}`);
+      if (manifest.devDeps.length) headerParts.push(`- 开发依赖：${clipList(manifest.devDeps)}`);
       headerParts.push('');
     }
   }
@@ -372,6 +374,8 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
   const header = headerParts.filter(Boolean).join('\n');
 
   const treeBlock = renderFileTree(input, fileScores, 80);
+
+  const skeletonBlock = renderSkeleton(input, fileScores);
 
   const readingBlock = renderReadingPath(input);
 
@@ -388,28 +392,54 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
     return lines.join('\n');
   };
 
-  const assemble = (count: number, withTree: boolean): { markdown: string; included: number } => {
+  /** 目录结构的三种粒度：完整 → 骨架 → 不给（预算从宽到紧） */
+  type TreeMode = 'full' | 'skeleton' | 'none';
+
+  /** 全部模块数（用于裁剪说明里的覆盖率） */
+  const totalModules = new Set(input.files.map((f) => moduleOf(f.path))).size;
+
+  const assemble = (
+    count: number,
+    layer: { tree: TreeMode; reading: boolean; calls: boolean },
+  ): { markdown: string; included: number } => {
     const parts = [header];
-    if (withTree) parts.push('## 目录结构', treeBlock.text);
+    if (layer.tree === 'full') parts.push('## 目录结构', treeBlock.text);
+    else if (layer.tree === 'skeleton') parts.push(skeletonBlock);
     // 阅读路线紧跟在目录结构之后：先告诉读者"从哪读起"，再给符号清单
-    if (readingBlock) parts.push(readingBlock);
-    parts.push(renderSymbols(count), callSummary);
+    if (layer.reading && readingBlock) parts.push(readingBlock);
+    parts.push(renderSymbols(count));
+    if (layer.calls) parts.push(callSummary);
+
+    const trim = renderTrimNote({
+      included: Math.min(count, ranked.length),
+      total: ranked.length,
+      modulesCovered: new Set(ranked.slice(0, count).map((s) => moduleOf(s.file))).size,
+      modulesTotal: totalModules,
+      fullTree: layer.tree === 'full',
+      readingOmitted: !layer.reading && Boolean(readingBlock),
+      callsOmitted: !layer.calls,
+    });
+    if (trim) parts.push(trim);
+
     const markdown = parts.join('\n\n');
     return { markdown, included: Math.min(count, ranked.length) };
   };
 
+  type Layer = { tree: TreeMode; reading: boolean; calls: boolean };
+
   /**
-   * 二分搜索：在给定"是否包含目录树"的前提下，找出满足预算的最大符号数。
+   * 二分搜索：在给定分层下，找出满足预算的最大符号数。
    * 找不到（连 0 个符号都超预算）时返回 null，交由调用方降级。
    */
-  const search = (withTree: boolean): { markdown: string; included: number } | null => {
+  const search = (layer: Layer): { markdown: string; included: number } | null => {
     let low = 0;
     let high = ranked.length;
     let best: { markdown: string; included: number } | null = null;
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
-      const candidate = assemble(mid, withTree);
-      if (estimateTokens(candidate.markdown) <= budget) {
+      const candidate = assemble(mid, layer);
+      // 留 5% 余量：估算与真实 BPE 仍有 ~±10% 偏差，宁可少装 5% 也不能让真实值溢出预算
+      if (estimateTokens(candidate.markdown) <= budget * 0.95) {
         best = candidate;
         low = mid + 1;
       } else {
@@ -419,19 +449,43 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
     return best;
   };
 
-  // 降级优先级：目录树+符号 → 仅符号 → 仅头部（保证极小预算下也是合法文档）
+  /**
+   * 降级阶梯：从信息最全到最精简，取第一条塞得下的。
+   *
+   * 两个原则：
+   *   1. **先降目录粒度、再降符号** —— 有文件清单，AI 才知道该要求看哪个文件；
+   *   2. **阅读路线与调用关系也是弹性内容** —— 它们单块就有一两百行，
+   *      若不参与降级，小预算下会把整个组装撑爆，直接掉到"只剩项目概览"的空包。
+   */
+  const LADDER: Layer[] = [
+    { tree: 'full', reading: true, calls: true },
+    { tree: 'skeleton', reading: true, calls: true },
+    { tree: 'skeleton', reading: false, calls: true },
+    { tree: 'skeleton', reading: false, calls: false },
+    { tree: 'none', reading: false, calls: false },
+  ];
+
   let chosen = { markdown: header, included: 0 };
   let treeIncluded = false;
-  for (const withTree of [true, false]) {
-    const result = search(withTree);
+  for (const layer of LADDER) {
+    const result = search(layer);
     if (result) {
       chosen = result;
-      treeIncluded = withTree;
+      treeIncluded = layer.tree === 'full';
       break;
     }
   }
 
-  const { markdown, included } = chosen;
+  const { included } = chosen;
+  /**
+   * 预算连最小骨架都装不下时，**裁剪头部**而不是往上加东西。
+   * 给空包不吭声是最差的结果（用户以为拿到了东西），加一段说明又会让 token 超预算，
+   * 所以按章节从后往前砍，砍到装得下为止。
+   */
+  const markdown =
+    included === 0 && !treeIncluded && chosen.markdown === header
+      ? shrinkHeader(header, budget)
+      : chosen.markdown;
   const tokens = estimateTokens(markdown);
   /** 保底开销：只有项目概览时的 token 数（预算低于此值时无法进一步裁剪） */
   const minTokens = estimateTokens(header);
@@ -597,6 +651,107 @@ const KIND_LABEL: Record<SymbolDef['kind'], string> = {
   variable: 'variable',
 };
 
+/**
+ * 裁剪说明：告诉读者（尤其是 AI）**这份包里缺了什么**。
+ *
+ * 一个知道自己盲区的模型，和一个以为自己看全了的模型，行为完全不同 ——
+ * 后者会自信地编造"这个项目没有 X 模块"。几十个 token 换掉这类幻觉，很划算。
+ * 仅在确实发生裁剪时输出。
+ */
+function renderTrimNote(stats: {
+  included: number;
+  total: number;
+  modulesCovered: number;
+  modulesTotal: number;
+  fullTree: boolean;
+  readingOmitted: boolean;
+  callsOmitted: boolean;
+}): string | null {
+  const notes: string[] = [];
+  if (stats.included < stats.total) {
+    const pct = Math.round((stats.included / Math.max(stats.total, 1)) * 100);
+    notes.push(`- 符号：已列出 ${stats.included}/${stats.total}（${pct}%），其余不在本包内`);
+    notes.push(`- 模块覆盖：${stats.modulesCovered}/${stats.modulesTotal} 个模块有符号被列出`);
+  }
+  if (!stats.fullTree) notes.push('- 目录：仅模块级骨架，完整文件清单未包含');
+  if (stats.readingOmitted) notes.push('- 阅读路线：已省略');
+  if (stats.callsOmitted) notes.push('- 调用关系：已省略');
+
+  if (notes.length === 0) return null;
+  return [
+    '## 本次裁剪说明',
+    '',
+    ...notes,
+    '',
+    '> 本包未覆盖的内容属于「未提供」而非「不存在」。需要时请指明模块或文件，让工具生成更大的包。',
+  ].join('\n');
+}
+
+/**
+ * 预算极小时的头部裁剪：按 `## ` 章节从后往前砍，保证结果不超过预算。
+ * 至少保留标题与说明块，并显式告知"内容已被裁剪到最小"——空包必须说清原因。
+ */
+function shrinkHeader(header: string, budget: number): string {
+  const note = `\n\n> （预算 ${budget} tokens 过低，以上内容已裁剪到最小；未包含任何代码结构）`;
+  const parts = header.split(/\n(?=## )/);
+  const lead = parts[0];
+  const sections = parts.slice(1);
+
+  // 先只放标题/说明块
+  if (estimateTokens(lead + note) > budget) {
+    return lead.split('\n')[0] + note;
+  }
+  let out = lead;
+  for (const section of sections) {
+    const candidate = `${out}\n\n${section}`;
+    if (estimateTokens(candidate + note) > budget) break;
+    out = candidate;
+  }
+  return out + note;
+}
+
 function oneLine(text: string): string {
   return text.replace(/\s+/g, ' ').replace(/`/g, "'").trim();
+}
+
+/** 列表截断：只保留前 N 个 + 总数（依赖清单这类"看一眼就够"的信息不该挤掉代码结构） */
+function clipList(list: string[], max = 8): string {
+  if (list.length <= max) return list.join(', ');
+  return `${list.slice(0, max).join(', ')} … 共 ${list.length} 个`;
+}
+
+/**
+ * 骨架层：极小预算下的最小可用内容。
+ *
+ * 原来的降级链是「完整树 + 符号 → 仅符号 → 仅头部」，预算 1000 时大项目会直接掉到最后一档，
+ * 用户拿到的是一份「项目概览 + 技术栈」——有 40 个依赖名，却没有任何代码结构。
+ * 骨架层保证任何预算下都能看到「项目由哪些模块组成、关键文件是哪几个」。
+ */
+function renderSkeleton(input: ContextPackInput, fileScores: Map<string, number>): string {
+  const byModule = new Map<string, number>();
+  for (const f of input.files) {
+    const m = moduleOf(f.path);
+    byModule.set(m, (byModule.get(m) ?? 0) + 1);
+  }
+  const moduleCap = 12;
+  const modules = [...byModule.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, moduleCap)
+    .map(([m, n]) => `- ${m === '(root)' ? '`(根目录)`' : `\`${m}/\``} — ${n} 个文件`)
+    .join('\n');
+
+  const fileCap = 6;
+  const keyFiles = [...input.files]
+    .sort((a, b) => (fileScores.get(b.path) ?? 0) - (fileScores.get(a.path) ?? 0))
+    .slice(0, fileCap)
+    .map((f) => `- \`${f.path}\``)
+    .join('\n');
+
+  return [
+    `## 模块地图（${Math.min(moduleCap, byModule.size)}/${byModule.size} 个模块）`,
+    modules,
+    '',
+    `## 关键文件（Top ${Math.min(fileCap, input.files.length)}/${input.files.length}）`,
+    keyFiles,
+  ].join('\n');
 }

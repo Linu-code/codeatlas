@@ -13,15 +13,76 @@ describe('tokenEstimator', () => {
     expect(estimateTokens('a'.repeat(400))).toBe(100);
   });
 
-  it('CJK 更"贵"（约 1.5 字符 / token）', () => {
-    expect(estimateTokens('中文测试')).toBe(3); // ceil(4 / 1.5)
+  it('CJK 比英文贵（约 1 字符 / token）', () => {
+    expect(estimateTokens('中文测试')).toBe(5); // 4 × 1.02 → ceil
     expect(estimateTokens('中文测试')).toBeGreaterThan(estimateTokens('abcd'));
+  });
+
+  it('标点比字母更贵（BPE 会把括号与运算符切碎）', () => {
+    const code = 'a.b(c);'.repeat(10);
+    const plain = 'a'.repeat(code.length);
+    expect(estimateTokens(code)).toBeGreaterThan(estimateTokens(plain) * 1.5);
   });
 
   it('fitsBudget 留 5% 安全余量', () => {
     const text = 'a'.repeat(1000); // 250 tokens
     expect(fitsBudget(text, 300)).toBe(true);
     expect(fitsBudget(text, 250)).toBe(false); // 250 > 250*0.95
+  });
+});
+
+// ---------- 大项目预算回归（防止"空包"复现） ----------
+
+describe('大项目在任何预算下都不是空包', () => {
+  /** 120 个文件 / 12 个模块 / 每个文件 4 个符号——接近真实中型仓库的规模 */
+  const big: FileAnalysis[] = [];
+  for (let m = 0; m < 12; m += 1) {
+    for (let f = 0; f < 10; f += 1) {
+      const path = `packages/mod${m}/src/file${f}.ts`;
+      big.push({
+        path,
+        language: 'typescript',
+        definitions: Array.from({ length: 4 }, (_, k) => ({
+          name: `mod${m}File${f}Fn${k}`,
+          kind: 'function' as SymbolDef['kind'],
+          line: k * 10 + 1,
+          endLine: k * 10 + 5,
+          signature: `function mod${m}File${f}Fn${k}(input: Config, options: Options): Promise<Result>`,
+          exported: true,
+        })),
+        calls: [],
+        references: [],
+        imports: f > 0 ? [`./file${f - 1}`] : [],
+        hasError: false,
+      });
+    }
+  }
+
+  const index = buildScopeIndex(big);
+  const input = {
+    repoName: 'demo/big',
+    files: big,
+    index,
+    treePaths: big.map((f) => f.path),
+    maxTokens: 1000,
+  };
+
+  for (const budget of [500, 1000, 2000, 8000, 32000]) {
+    it(`预算 ${budget}：有模块骨架、符号不为负、且不超预算`, () => {
+      const pack = generateContextPack({ ...input, maxTokens: budget });
+      expect(pack.tokens).toBeLessThanOrEqual(budget);
+      // 关键：任何预算都必须能看到"项目由哪些模块组成"（旧实现在 1000 预算下只给 198 token 的头部）
+      expect(pack.markdown).toContain('模块');
+      expect(pack.includedSymbols).toBeGreaterThanOrEqual(0);
+      // 不能是一份没有代码信息的空文档
+      expect(pack.markdown.length).toBeGreaterThan(150);
+    });
+  }
+
+  it('预算 1000 时至少列出若干真实符号', () => {
+    const pack = generateContextPack({ ...input, maxTokens: 1000 });
+    expect(pack.includedSymbols).toBeGreaterThan(0);
+    expect(pack.markdown).toMatch(/mod\dFile\dFn\d/);
   });
 });
 
@@ -174,6 +235,30 @@ describe('generateContextPack', () => {
     const large = generateContextPack({ ...baseInput, maxTokens: 1500 });
     expect(large.includedSymbols).toBeGreaterThanOrEqual(small.includedSymbols);
     expect(large.totalSymbols).toBe(5);
+  });
+
+  it('极小预算下降级到模块骨架，而不是只剩项目概览', () => {
+    // 曾经的降级链会直接掉到"仅头部"——预算 1000 的大项目只产出 198 token 的空包
+    const pack = generateContextPack({ ...baseInput, maxTokens: 600 });
+    expect(pack.markdown).toContain('模块地图');
+    expect(pack.markdown).toContain('src/');
+  });
+
+  it('发生裁剪时输出「本次裁剪说明」，告知 AI 自己缺了什么', () => {
+    const pack = generateContextPack({ ...baseInput, maxTokens: 600 });
+    expect(pack.markdown).toContain('## 本次裁剪说明');
+    expect(pack.markdown).toContain('未提供');
+  });
+
+  it('预算低到装不下任何结构时，明确说明「已裁剪到最小」且不超预算', () => {
+    const pack = generateContextPack({ ...baseInput, maxTokens: 320 });
+    expect(pack.markdown).toMatch(/预算 320 tokens 过低/);
+    expect(pack.tokens).toBeLessThanOrEqual(320);
+  });
+
+  it('预算充裕且内容放得下时，不输出裁剪说明', () => {
+    const pack = generateContextPack({ ...baseInput, maxTokens: 8000 });
+    expect(pack.markdown).not.toContain('## 本次裁剪说明');
   });
 
   it('符号按 PageRank 与引用数排序：被依赖更多者靠前', () => {
