@@ -15,13 +15,45 @@
 import type { FileAnalysis, SymbolDef } from './symbols';
 import type { ScopeIndex } from './scopeGraph';
 import { buildDependencyEdges, pageRank } from './pagerank';
+// 模块聚合与架构视图共用同一套规则（src/ 与 packages/<pkg> 下钻）：
+// 这里曾经自己抄了一份「只取第一段」的实现，导致同一份代码在上下文包里被算成
+// 4 个模块、在架构视图里是 19 个 —— 两份清单必然走偏，只留一份。
+import { moduleOf } from './moduleGraph';
+
+/** 模块名的展示形式：根目录用中文标注，其余补目录斜杠 */
+function displayModule(m: string): string {
+  return m === '(root)' ? '(根目录)' : `\`${m}/\``;
+}
 import { estimateTokens } from '../utils/tokenEstimator';
 import type { FileMetrics } from './metrics';
+
+/**
+ * 上下文包用途。
+ *
+ * 「一次生成、所有场景共用」让包变成大杂烩：想了解架构的人被迫读复杂度表，
+ * 想评估代码质量的人被迫读完 200 条符号签名。按用途裁剪章节，同样预算下密度更高。
+ *
+ *   overview —— 理解项目（默认）：概览 / 构建 / 技术栈 / 目录 / 阅读路线 / 符号 / 调用
+ *   health   —— 代码健康：概览 + 复杂度 Top / 循环依赖 / 超大文件 / god file
+ *   api      —— 对外接口：概览 + 构建 / 技术栈 + 模块地图 + 导出符号签名
+ */
+export type PackIntent = 'overview' | 'health' | 'api';
+
+/** 循环依赖摘要（health 用途需要，由 ProjectView 从分析结果传入） */
+export interface CycleSummary {
+  cycles: string[][];
+  dirCycles: string[][];
+  involvedFiles: number;
+}
 
 export interface ContextPackInput {
   /** 仓库展示名（owner/repo 或 ZIP 文件名） */
   repoName: string;
   branch?: string;
+  /** 包用途（默认 overview） */
+  intent?: PackIntent;
+  /** 循环依赖（仅 health 用途使用） */
+  cycles?: CycleSummary;
   files: FileAnalysis[];
   index: ScopeIndex;
   metrics?: FileMetrics[];
@@ -127,12 +159,6 @@ export function rankSymbols(input: ContextPackInput): RankedSymbol[] {
   );
 }
 
-/** 文件路径 → 顶层模块名（超大项目按模块聚合才有用） */
-function moduleOf(path: string): string {
-  const i = path.indexOf('/');
-  return i < 0 ? '(根目录)' : path.slice(0, i);
-}
-
 interface ManifestInfo {
   name?: string;
   version?: string;
@@ -230,7 +256,7 @@ function renderFileTree(
         .slice(0, 3)
         .map((p) => `\`${p}\``)
         .join(', ');
-      const label = m === '(根目录)' ? '(根目录)' : `\`${m}/\``;
+      const label = displayModule(m);
       return `- ${label} — ${paths.length} 个文件 · 关键：${key}`;
     });
 
@@ -312,6 +338,7 @@ function renderReadingPath(input: ContextPackInput): string | null {
 /** 第 4+5 步：按预算裁剪并格式化 */
 export function generateContextPack(input: ContextPackInput): ContextPack {
   const budget = input.maxTokens;
+  const intent: PackIntent = input.intent ?? 'overview';
   const ranked = rankSymbols(input);
 
   /** 文件 → PageRank（ranked 已按分数降序，首次出现即该文件的最高分） */
@@ -325,11 +352,22 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
   const manifest = input.manifestText ? parseManifest(input.manifestText) : null;
   const packageManager = detectPackageManager(input.treePaths);
 
+  const INTENT_TITLE: Record<PackIntent, string> = {
+    overview: '',
+    health: '（代码健康）',
+    api: '（对外接口）',
+  };
+  const INTENT_SCOPE: Record<PackIntent, string> = {
+    overview: '项目概览 / 构建与运行 / 技术栈 / 目录结构与模块地图 / 建议阅读路线 / 核心符号签名 / 关键调用关系。',
+    health: '项目概览 / 代码健康（复杂度 Top、循环依赖、超大文件）/ 核心符号签名。',
+    api: '项目概览 / 构建与运行 / 技术栈 / 模块地图 / 对外导出符号（含签名）。',
+  };
+
   const headerParts = [
-    `# ${input.repoName} — CodeAtlas 上下文包`,
+    `# ${input.repoName} — CodeAtlas 上下文包${INTENT_TITLE[intent]}`,
     '',
     '> 本文件由 CodeAtlas 本地静态分析生成（无 AI 参与）。',
-    '> 内容：项目概览 / 构建与运行 / 技术栈 / 目录结构与模块地图 / 建议阅读路线 / 核心符号签名 / 关键调用关系。',
+    `> 内容：${INTENT_SCOPE[intent]}`,
     '> 符号只含签名（无函数体）：需要实现细节时，请按 `路径:行号` 打开源码。',
     '',
     '## 项目概览',
@@ -347,7 +385,8 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
   ];
 
   // 构建与运行 / 技术栈：只有拿到 package.json 时才输出（缺失不影响其它章节）
-  if (manifest) {
+  // health 用途不带这些：关心代码质量时，框架与依赖清单是纯噪音。
+  if (manifest && intent !== 'health') {
     headerParts.push('## 构建与运行', '');
     const pkg = [manifest.name, manifest.version].filter(Boolean).join('@');
     if (pkg) headerParts.push(`- 包：${pkg}`);
@@ -381,11 +420,15 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
 
   const callSummary = renderCallSummary(input, ranked);
 
+  /** api 用途只关心对外契约，内部符号不进包 */
+  const symbolPool = intent === 'api' ? ranked.filter((s) => s.exported) : ranked;
+
   // 符号区：用二分搜索找"最大可容纳符号数"
   const renderSymbols = (count: number): string => {
-    if (count <= 0) return '## 核心符号签名\n\n（预算不足，未包含符号列表）';
-    const lines = ['## 核心符号签名（按重要性排序）', ''];
-    for (const s of ranked.slice(0, count)) {
+    const title = intent === 'api' ? '## 对外导出符号（含签名）' : '## 核心符号签名（按重要性排序）';
+    if (count <= 0) return `${title}\n\n（预算不足，未包含符号列表）`;
+    const lines = [title, ''];
+    for (const s of symbolPool.slice(0, count)) {
       const kindLabel = KIND_LABEL[s.kind];
       lines.push(`- \`${s.file}:${s.line}\` **${s.name}** (${kindLabel}) — \`${oneLine(s.signature)}\``);
     }
@@ -398,31 +441,41 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
   /** 全部模块数（用于裁剪说明里的覆盖率） */
   const totalModules = new Set(input.files.map((f) => moduleOf(f.path))).size;
 
+  const healthBlock = intent === 'health' ? renderHealthBlock(input) : null;
+
   const assemble = (
     count: number,
     layer: { tree: TreeMode; reading: boolean; calls: boolean },
   ): { markdown: string; included: number } => {
     const parts = [header];
-    if (layer.tree === 'full') parts.push('## 目录结构', treeBlock.text);
-    else if (layer.tree === 'skeleton') parts.push(skeletonBlock);
-    // 阅读路线紧跟在目录结构之后：先告诉读者"从哪读起"，再给符号清单
-    if (layer.reading && readingBlock) parts.push(readingBlock);
+
+    if (intent === 'health') {
+      if (healthBlock) parts.push(healthBlock);
+    } else if (intent === 'api') {
+      parts.push(skeletonBlock);
+    } else {
+      if (layer.tree === 'full') parts.push('## 目录结构', treeBlock.text);
+      else if (layer.tree === 'skeleton') parts.push(skeletonBlock);
+      // 阅读路线紧跟在目录结构之后：先告诉读者"从哪读起"，再给符号清单
+      if (layer.reading && readingBlock) parts.push(readingBlock);
+    }
+
     parts.push(renderSymbols(count));
-    if (layer.calls) parts.push(callSummary);
+    if (intent === 'overview' && layer.calls) parts.push(callSummary);
 
     const trim = renderTrimNote({
-      included: Math.min(count, ranked.length),
-      total: ranked.length,
-      modulesCovered: new Set(ranked.slice(0, count).map((s) => moduleOf(s.file))).size,
+      included: Math.min(count, symbolPool.length),
+      total: symbolPool.length,
+      modulesCovered: new Set(symbolPool.slice(0, count).map((s) => moduleOf(s.file))).size,
       modulesTotal: totalModules,
-      fullTree: layer.tree === 'full',
-      readingOmitted: !layer.reading && Boolean(readingBlock),
-      callsOmitted: !layer.calls,
+      fullTree: intent === 'overview' && layer.tree === 'full',
+      readingOmitted: intent === 'overview' && !layer.reading && Boolean(readingBlock),
+      callsOmitted: intent === 'overview' && !layer.calls,
     });
     if (trim) parts.push(trim);
 
     const markdown = parts.join('\n\n');
-    return { markdown, included: Math.min(count, ranked.length) };
+    return { markdown, included: Math.min(count, symbolPool.length) };
   };
 
   type Layer = { tree: TreeMode; reading: boolean; calls: boolean };
@@ -433,7 +486,7 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
    */
   const search = (layer: Layer): { markdown: string; included: number } | null => {
     let low = 0;
-    let high = ranked.length;
+    let high = symbolPool.length;
     let best: { markdown: string; included: number } | null = null;
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
@@ -456,14 +509,19 @@ export function generateContextPack(input: ContextPackInput): ContextPack {
    *   1. **先降目录粒度、再降符号** —— 有文件清单，AI 才知道该要求看哪个文件；
    *   2. **阅读路线与调用关系也是弹性内容** —— 它们单块就有一两百行，
    *      若不参与降级，小预算下会把整个组装撑爆，直接掉到"只剩项目概览"的空包。
+   *
+   * health / api 用途的章节结构是固定的，没有可降的层级，只留一档用于二分符号数。
    */
-  const LADDER: Layer[] = [
-    { tree: 'full', reading: true, calls: true },
-    { tree: 'skeleton', reading: true, calls: true },
-    { tree: 'skeleton', reading: false, calls: true },
-    { tree: 'skeleton', reading: false, calls: false },
-    { tree: 'none', reading: false, calls: false },
-  ];
+  const LADDER: Layer[] =
+    intent === 'overview'
+      ? [
+          { tree: 'full', reading: true, calls: true },
+          { tree: 'skeleton', reading: true, calls: true },
+          { tree: 'skeleton', reading: false, calls: true },
+          { tree: 'skeleton', reading: false, calls: false },
+          { tree: 'none', reading: false, calls: false },
+        ]
+      : [{ tree: 'none', reading: false, calls: false }];
 
   let chosen = { markdown: header, included: 0 };
   let treeIncluded = false;
@@ -652,6 +710,63 @@ const KIND_LABEL: Record<SymbolDef['kind'], string> = {
 };
 
 /**
+ * 代码健康章节（`health` 用途）。
+ *
+ * 上下文包里唯一缺失的一类信息：**哪里有问题**。
+ * 复杂度、循环依赖、超大文件这些数据早就分析出来了，只是没进包——
+ * 而 AI 想帮忙改代码时，恰恰最需要知道"哪块是雷区"。
+ */
+function renderHealthBlock(input: ContextPackInput): string | null {
+  const metrics = input.metrics;
+  if (!metrics || metrics.length === 0) return null;
+
+  const fns = metrics.flatMap((m) =>
+    m.functions.map((f) => ({ file: m.path, ...f })),
+  );
+  const topFns = [...fns].sort((a, b) => b.cyclomatic - a.cyclomatic).slice(0, 10);
+  const highCount = fns.filter((f) => f.cyclomatic > 15).length;
+  const avg = fns.length ? fns.reduce((s, f) => s + f.cyclomatic, 0) / fns.length : 0;
+
+  const bigFiles = [...metrics].sort((a, b) => b.sloc - a.sloc).slice(0, 6);
+  const cycles = input.cycles;
+
+  const lines = ['## 代码健康', ''];
+
+  lines.push(`- 函数总数：${fns.length}，平均圈复杂度 ${avg.toFixed(1)}`);
+  lines.push(`- 高复杂度函数（圈复杂度 > 15）：${highCount} 个`);
+  if (cycles) {
+    lines.push(
+      `- 循环依赖：${cycles.cycles.length} 处文件级、${cycles.dirCycles.length} 处模块级，涉及 ${cycles.involvedFiles} 个文件`,
+    );
+  }
+
+  if (topFns.length) {
+    lines.push('', `### 复杂度 Top ${topFns.length}`, '');
+    for (const f of topFns) {
+      lines.push(
+        `- \`${f.file}:${f.line}\` **${f.name}** — 圈复杂度 ${f.cyclomatic} · 认知 ${f.cognitive} · ${f.sloc} 行`,
+      );
+    }
+  }
+
+  if (cycles && cycles.cycles.length) {
+    lines.push('', `### 循环依赖（前 ${Math.min(5, cycles.cycles.length)} 条）`, '');
+    for (const c of cycles.cycles.slice(0, 5)) {
+      lines.push(`- ${c.map((p) => `\`${p}\``).join(' → ')}`);
+    }
+  }
+
+  if (bigFiles.length) {
+    lines.push('', `### 超大文件 Top ${bigFiles.length}`, '');
+    for (const m of bigFiles) {
+      lines.push(`- \`${m.path}\` — ${m.sloc} 行 · ${m.functions.length} 个函数`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * 裁剪说明：告诉读者（尤其是 AI）**这份包里缺了什么**。
  *
  * 一个知道自己盲区的模型，和一个以为自己看全了的模型，行为完全不同 ——
@@ -737,7 +852,7 @@ function renderSkeleton(input: ContextPackInput, fileScores: Map<string, number>
   const modules = [...byModule.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, moduleCap)
-    .map(([m, n]) => `- ${m === '(root)' ? '`(根目录)`' : `\`${m}/\``} — ${n} 个文件`)
+    .map(([m, n]) => `- ${displayModule(m)} — ${n} 个文件`)
     .join('\n');
 
   const fileCap = 6;

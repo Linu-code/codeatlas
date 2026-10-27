@@ -86,6 +86,74 @@ describe('大项目在任何预算下都不是空包', () => {
   });
 });
 
+// ---------- 按用途裁剪（health / api） ----------
+
+describe('上下文包用途', () => {
+  const index = buildScopeIndex(FILES);
+  const metrics = [
+    {
+      path: 'src/core.ts',
+      language: 'typescript' as const,
+      cyclomatic: 40,
+      cognitive: 60,
+      totalLines: 300,
+      sloc: 260,
+      commentLines: 10,
+      maxFunctionComplexity: 32,
+      functions: [
+        { name: 'bigDispatch', line: 12, endLine: 200, cyclomatic: 32, cognitive: 50, sloc: 180 },
+        { name: 'helper', line: 205, endLine: 210, cyclomatic: 2, cognitive: 1, sloc: 5 },
+      ],
+    },
+  ];
+  const cycles = {
+    cycles: [['src/core.ts', 'src/util.ts', 'src/core.ts']],
+    dirCycles: [],
+    involvedFiles: 2,
+  };
+  const base = {
+    repoName: 'demo/repo',
+    files: FILES,
+    index,
+    treePaths: ['README.md', 'src/util.ts', 'src/core.ts', 'src/main.ts', 'package.json'],
+    maxTokens: 2000,
+    metrics,
+    cycles,
+  };
+
+  it('health：给出复杂度与循环依赖，且不含无关的技术栈章节', () => {
+    const pack = generateContextPack({ ...base, intent: 'health', manifestText: '{"name":"x","version":"1.0.0","dependencies":{"react":"^18.0.0"}}' });
+    expect(pack.markdown).toContain('代码健康');
+    expect(pack.markdown).toContain('bigDispatch');
+    expect(pack.markdown).toContain('循环依赖');
+    expect(pack.markdown).not.toContain('## 技术栈');
+  });
+
+  it('api：只列导出符号，不收内部符号', () => {
+    const pack = generateContextPack({ ...base, intent: 'api' });
+    expect(pack.markdown).toContain('对外导出符号');
+    const body = pack.markdown.split('## 对外导出符号')[1] ?? '';
+    // FILES 里非导出的内部符号不应出现在 API 清单中
+    expect(body).not.toMatch(/internalHelper/);
+  });
+
+  it('三种用途互不混装：overview 不含健康章节，health 不含阅读路线', () => {
+    const overview = generateContextPack({ ...base, intent: 'overview', readingPath: [
+      { path: 'src/main.ts', order: 1, role: 'entry' },
+    ] });
+    const health = generateContextPack({ ...base, intent: 'health' });
+    expect(overview.markdown).not.toContain('## 代码健康');
+    expect(overview.markdown).toContain('建议阅读路线');
+    expect(health.markdown).not.toContain('建议阅读路线');
+  });
+
+  it('unknown / 缺省 intent 回落到 overview（向后兼容）', () => {
+    const pack = generateContextPack(base);
+    expect(pack.markdown).toContain('## 项目概览');
+    expect(pack.markdown).toContain('## 核心符号签名');
+  });
+});
+
 // ---------- pagerank ----------
 
 describe('pageRank（power iteration）', () => {

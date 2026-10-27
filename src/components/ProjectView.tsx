@@ -36,7 +36,7 @@ import { githubLinkBase, githubRawBase } from '../utils/markdown';
 import { flattenFiles } from '../sources/tree';
 import { formatSize } from '../utils/format';
 import { annotateDirectories } from '../analysis/directories';
-import { generateContextPack, type ContextPack } from '../analysis/contextPack';
+import { generateContextPack, type ContextPack, type PackIntent } from '../analysis/contextPack';
 import { findSymbol, gotoDefinition, indexStats } from '../analysis/scopeGraph';
 import type { AppConfig, Language, ThemeId } from '../types/config';
 import { workspace, type ProjectEntry } from '../workspace/workspace';
@@ -263,7 +263,7 @@ export default function ProjectView({
 
   // ---------- AI 上下文包 ----------
   const generatePack = useCallback(
-    async (budgetOverride?: number) => {
+    async (budgetOverride?: number, intentOverride?: PackIntent) => {
       if (!fs) return;
       setPackGenerating(true);
       try {
@@ -283,6 +283,8 @@ export default function ProjectView({
         const result = generateContextPack({
           repoName: fs.meta.name,
           branch: fs.meta.branch,
+          intent: intentOverride,
+          cycles: bundle.cycles ?? undefined,
           files: bundle.files,
           index: bundle.index,
           metrics: bundle.metrics,
@@ -739,7 +741,7 @@ export default function ProjectView({
         generating={packGenerating}
         budget={config.maxTokens}
         ai={config.ai}
-        onGenerate={(budget) => void generatePack(budget)}
+        onGenerate={(budget, intent) => void generatePack(budget, intent)}
         onBudgetChange={(maxTokens) => onConfigChange({ maxTokens })}
         onClose={() => setPackOpen(false)}
       />

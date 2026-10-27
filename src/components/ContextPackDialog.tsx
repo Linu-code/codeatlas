@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ContextPack } from '../analysis/contextPack';
+import type { ContextPack, PackIntent } from '../analysis/contextPack';
 import type { AiConfig } from '../types/config';
 import { AiError, buildExplainPrompt, streamChat } from '../utils/aiClient';
 import { loadAiKey } from '../utils/configStore';
@@ -23,8 +23,8 @@ interface Props {
   budget: number;
   /** AI 解读配置；provider 为 off 时按钮引导用户去设置页 */
   ai: AiConfig;
-  /** 生成；传 budget 时按该预算生成（预算预设按钮用） */
-  onGenerate: (budget?: number) => void;
+  /** 生成；传 budget / intent 时按该组合重新生成 */
+  onGenerate: (budget?: number, intent?: PackIntent) => void;
   /** 持久化预算（写入配置），可选 */
   onBudgetChange?: (budget: number) => void;
   onClose: () => void;
@@ -55,6 +55,7 @@ export default function ContextPackDialog({
   useFocusTrap(dialogRef, open, onClose);
   const [tab, setTab] = useState<'md' | 'json' | 'ai'>('md');
   const [copied, setCopied] = useState(false);
+  const [intent, setIntent] = useState<PackIntent>('overview');
 
   // ---------- AI 解读（默认关闭；只有点按钮才发请求） ----------
   const [aiText, setAiText] = useState('');
@@ -152,17 +153,35 @@ export default function ContextPackDialog({
               )}
             </>
           )}
-          <div
-            className="ms-auto flex items-center gap-1"
-            role="group"
-            aria-label={t('common:maxTokens')}
+          <select
+            data-pack-intent
+            value={intent}
+            onChange={(e) => {
+              const next = e.target.value as PackIntent;
+              setIntent(next);
+              onGenerate(undefined, next);
+            }}
+            disabled={generating}
+            aria-label={t('analysis:packIntent')}
+            title={t('analysis:packIntentHint')}
+            className="ms-auto shrink-0 rounded border px-1.5 py-0.5 text-xs disabled:opacity-40"
+            style={{
+              background: 'var(--c-bg)',
+              borderColor: 'var(--c-border)',
+              color: 'var(--c-text)',
+            }}
           >
+            <option value="overview">{t('analysis:intentOverview')}</option>
+            <option value="health">{t('analysis:intentHealth')}</option>
+            <option value="api">{t('analysis:intentApi')}</option>
+          </select>
+          <div className="flex items-center gap-1" role="group" aria-label={t('common:maxTokens')}>
             {[2000, 8000, 32000, 64000].map((b) => (
               <button
                 key={b}
                 onClick={() => {
                   onBudgetChange?.(b);
-                  onGenerate(b);
+                  onGenerate(b, intent);
                 }}
                 disabled={generating}
                 title={`${b} tokens`}
@@ -237,7 +256,7 @@ export default function ContextPackDialog({
 
         <footer className="flex items-center gap-2">
           <button
-            onClick={() => onGenerate()}
+            onClick={() => onGenerate(undefined, intent)}
             disabled={generating}
             className="rounded px-3 py-1 text-white disabled:opacity-50"
             style={{ background: 'var(--c-primary)' }}

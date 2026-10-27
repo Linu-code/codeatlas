@@ -141,6 +141,11 @@ export const en = {
     // ---- AI context pack (M6) ----
     contextPack: 'AI context pack',
     contextPackGenerate: 'Generate AI context pack',
+    packIntent: 'Pack purpose',
+    packIntentHint: 'Overview = structure and reading order; Health = complexity and cycles; API = exported symbols and signatures',
+    intentOverview: 'Overview',
+    intentHealth: 'Code health',
+    intentApi: 'Public API',
     aiExplain: 'AI explain',
     aiRunning: 'Generating…',
     aiIdle: 'Press AI explain to have the model write a project walkthrough from the context pack.',

@@ -144,6 +144,11 @@ export const zh = {
     // ---- AI 上下文包（M6） ----
     contextPack: 'AI 上下文包',
     contextPackGenerate: '生成 AI 上下文包',
+    packIntent: '包用途',
+    packIntentHint: '理解项目 = 整体结构与阅读顺序；代码健康 = 复杂度与循环依赖；对外接口 = 导出符号与签名',
+    intentOverview: '理解项目',
+    intentHealth: '代码健康',
+    intentApi: '对外接口',
     aiExplain: 'AI 解读',
     aiRunning: '生成中…',
     aiIdle: '点击下方「AI 解读」，让模型基于上下文包写一份项目导读。',

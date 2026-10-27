@@ -141,6 +141,11 @@ export const ja = {
     // ---- AI コンテキストパック（M6） ----
     contextPack: 'AI コンテキストパック',
     contextPackGenerate: 'AI コンテキストパックを生成',
+    packIntent: 'パックの用途',
+    packIntentHint: '全体像＝構造と読む順序／健全性＝複雑度と循環依存／公開 API＝エクスポートされたシンボルとシグネチャ',
+    intentOverview: '全体像',
+    intentHealth: 'コード健全性',
+    intentApi: '公開 API',
     aiExplain: 'AI 解説',
     aiRunning: '生成中…',
     aiIdle: '下の「AI 解説」を押すと、コンテキストパックからプロジェクト解説を生成します。',

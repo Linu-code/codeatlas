@@ -146,8 +146,26 @@ test('AI 上下文包：生成含四要素的 Markdown 与 JSON（验收 18/19�
   await expect(dialog).toContainText('"symbols"');
 });
 
-test('AI 解读：默认关闭时给出设置引导，且不发任何请求', async ({ page }) => {
+test('上下文包用途：切到「代码健康」后章节随之改变', async ({ page }) => {
   await loadFixtureZip(page, zipPath);
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+  await expect(dialog).toContainText('## 建议阅读路线');
+
+  // 切用途 → 重新生成 → 健康章节出现，阅读路线消失
+  await dialog.locator('[data-pack-intent]').selectOption('health');
+  await expect(dialog).toContainText('## 代码健康', { timeout: 40_000 });
+  await expect(dialog).not.toContainText('## 建议阅读路线');
+
+  // 切到对外接口：只列导出符号
+  await dialog.locator('[data-pack-intent]').selectOption('api');
+  await expect(dialog).toContainText('## 对外导出符号', { timeout: 40_000 });
+  await expect(dialog).not.toContainText('## 关键调用关系');
+});
+
+test('AI 解读：默认关闭时给出设置引导，且不发任何请求', async ({ page }) => {  await loadFixtureZip(page, zipPath);
 
   // 记录点击后产生的请求，确认默认关闭时确实不联网
   const external: string[] = [];
