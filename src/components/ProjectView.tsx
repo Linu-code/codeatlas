@@ -37,6 +37,7 @@ import { flattenFiles } from '../sources/tree';
 import { formatSize } from '../utils/format';
 import { annotateDirectories } from '../analysis/directories';
 import { generateContextPack, type ContextPack, type PackIntent } from '../analysis/contextPack';
+import { formatSlice, resolveAddress, type SliceOutcome } from '../analysis/slice';
 import { findSymbol, gotoDefinition, indexStats } from '../analysis/scopeGraph';
 import type { AppConfig, Language, ThemeId } from '../types/config';
 import { workspace, type ProjectEntry } from '../workspace/workspace';
@@ -309,6 +310,33 @@ export default function ProjectView({
       }
     },
     [analysis, config.maxTokens, dirPurposeLabels, dirPurposes, fs, repo.tree],
+  );
+
+  /**
+   * 按需展开：把 `路径:行号` / `路径#符号` 解析成带行号的代码片段。
+   * 与上下文包互补——包给"有什么、在哪"，这里按地址取实现，只花几百 token。
+   */
+  const sliceFromAddress = useCallback(
+    async (address: string): Promise<SliceOutcome> => {
+      if (!fs) return { kind: 'invalid', reason: 'not-found' };
+      const bundle = await analysis.analyze(fs, repo.tree);
+      const resolved = resolveAddress(address, {
+        files: bundle.files,
+        paths: flattenFiles(repo.tree),
+      });
+      if (resolved.kind !== 'ok') return resolved;
+
+      let source: string;
+      try {
+        source = await fs.readFile(resolved.target.path);
+      } catch {
+        // 二进制 / 超大文件 / 读取失败：明确区分，不要把错误当成"符号不存在"
+        return { kind: 'invalid', reason: 'read-failed' };
+      }
+      const slice = formatSlice(source, resolved.target, { maxTokens: 800 });
+      return { kind: 'ok', text: slice.text, tokens: slice.tokens, truncated: slice.truncated };
+    },
+    [analysis, fs, repo.tree],
   );
 
   /**
@@ -745,6 +773,7 @@ export default function ProjectView({
         ai={config.ai}
         onGenerate={(budget, intent, focusQuery) => void generatePack(budget, intent, focusQuery)}
         onBudgetChange={(maxTokens) => onConfigChange({ maxTokens })}
+        onSlice={sliceFromAddress}
         onClose={() => setPackOpen(false)}
       />
 

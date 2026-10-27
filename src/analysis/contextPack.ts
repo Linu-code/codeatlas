@@ -39,8 +39,9 @@ import type { FileEdge } from './importResolver';
  *   health   —— 代码健康：概览 + 复杂度 Top / 循环依赖 / 超大文件 / god file
  *   api      —— 对外接口：概览 + 构建 / 技术栈 + 模块地图 + 导出符号签名
  *   focus    —— 任务焦点：按关键词检索出的相关文件子图（只讲相关的那一块）
+ *   index    —— 符号索引：只有「有什么 / 在哪」，实现细节按地址索取（配合「按需展开」）
  */
-export type PackIntent = 'overview' | 'health' | 'api' | 'focus';
+export type PackIntent = 'overview' | 'health' | 'api' | 'focus' | 'index';
 
 /** 循环依赖摘要（health 用途需要，由 ProjectView 从分析结果传入） */
 export interface CycleSummary {
@@ -342,8 +343,65 @@ function renderReadingPath(input: ContextPackInput): string | null {
   return lines.join('\n');
 }
 
-/** 目录用途 → (目录, 本地化文案) 列表：让中文查询也能落到目录上 */
-function collectDirLabels(input: ContextPackInput): { dir: string; label: string }[] {
+/** 索引里用的类型缩写：'function' 太占 token，一行要给"地址 + 名字 + 签名"留空间 */
+const KIND_ABBR: Record<SymbolDef['kind'], string> = {
+  function: 'fn',
+  method: 'method',
+  class: 'class',
+  interface: 'iface',
+  type: 'type',
+  enum: 'enum',
+  variable: 'var',
+};
+
+/**
+ * 生成索引条目：`路径:行号` 一行一条。
+ *
+ * 顺序 = 文件重要性（ranked 已按 PageRank 降序）→ 文件内行号。
+ * 这样预算截断时先丢的是"边缘文件的尾部符号"，而不是随机丢。
+ */
+function buildIndexLines(ranked: RankedSymbol[]): { text: string; file: string }[] {
+  const byFile = new Map<string, RankedSymbol[]>();
+  for (const s of ranked) {
+    const list = byFile.get(s.file);
+    if (list) list.push(s);
+    else byFile.set(s.file, [s]);
+  }
+  const groups = [...byFile.entries()].map(([file, syms]) => ({
+    file,
+    syms: [...syms].sort((a, b) => a.line - b.line),
+  }));
+
+  // **轮转取用，而不是一个文件倒到底**：
+  // 按文件顺序连续铺开会出事——预算 1000 时 Vue 只装下 17 条，全来自同一个文件
+  // （PageRank 第一名恰好有 17 个方法），索引退化成"一个文件的符号表"。
+  // 轮转后同样的预算能覆盖到 17 个文件，"有什么"这个问题才答得上来。
+  const out: { text: string; file: string }[] = [];
+  const maxLen = groups.reduce((n, g) => Math.max(n, g.syms.length), 0);
+  for (let round = 0; round < maxLen; round += 1) {
+    for (const g of groups) {
+      const s = g.syms[round];
+      if (!s) continue;
+      // 索引行**不带签名**：签名平均 30+ token，占一条索引的七成，
+      // 而索引的职责只是"定位"。要签名/实现就按地址展开（展开一次 80~150 token）。
+      out.push({
+        file: g.file,
+        text: `- \`${g.file}:${s.line}\` ${KIND_ABBR[s.kind]} ${s.name}`,
+      });
+    }
+  }
+  return out;
+}
+
+function renderIndexSection(lines: { text: string }[], count: number): string {
+  const head = '## 符号索引（`路径:行号` — 类型 — 名称）';
+  if (count <= 0) return `${head}\n\n（预算不足，未包含任何符号）`;
+  const body = lines.slice(0, count).map((l) => l.text);
+  if (count < lines.length) body.push(`- …另有 ${lines.length - count} 个符号因预算未列出`);
+  return [head, '', ...body].join('\n');
+}
+
+/** 目录用途 → (目录, 本地化文案) 列表：让中文查询也能落到目录上 */function collectDirLabels(input: ContextPackInput): { dir: string; label: string }[] {
   if (!input.dirPurposes || !input.purposeLabels) return [];
   const out: { dir: string; label: string }[] = [];
   for (const [dir, purpose] of input.dirPurposes) {
@@ -442,12 +500,14 @@ function renderFocusEdges(result: FocusResult): string | null {
     health: '（代码健康）',
     api: '（对外接口）',
     focus: '（任务焦点）',
+    index: '（符号索引）',
   };
   const INTENT_SCOPE: Record<PackIntent, string> = {
     overview: '项目概览 / 构建与运行 / 技术栈 / 目录结构与模块地图 / 建议阅读路线 / 核心符号签名 / 关键调用关系。',
     health: '项目概览 / 代码健康（复杂度 Top、循环依赖、超大文件）/ 核心符号签名。',
     api: '项目概览 / 构建与运行 / 技术栈 / 模块地图 / 对外导出符号（含签名）。',
     focus: '项目概览 / 任务焦点（检索命中的文件与依据）/ 相关符号签名 / 焦点内依赖关系。',
+    index: '项目概览 / 索引使用说明 / 符号索引（路径:行号 + 类型 + 名称，无签名与函数体）。',
   };
 
   const headerParts = [
@@ -474,7 +534,8 @@ function renderFocusEdges(result: FocusResult): string | null {
   // 构建与运行 / 技术栈：只有拿到 package.json 时才输出（缺失不影响其它章节）
   // health 用途不带这些：关心代码质量时，框架与依赖清单是纯噪音。
   // focus 也不带：问的是"这块怎么改"，构建脚本与依赖清单都是预算浪费。
-  if (manifest && intent !== 'health' && intent !== 'focus') {
+  // index 更不带：索引的每一行都应该是可寻址的符号，元信息挤占的是"能不能找到代码"。
+  if (manifest && intent !== 'health' && intent !== 'focus' && intent !== 'index') {
     headerParts.push('## 构建与运行', '');
     const pkg = [manifest.name, manifest.version].filter(Boolean).join('@');
     if (pkg) headerParts.push(`- 包：${pkg}`);
@@ -498,8 +559,22 @@ function renderFocusEdges(result: FocusResult): string | null {
     }
   }
 
-  const header = headerParts.filter(Boolean).join('\n');
+  // 索引用途：把「怎么按地址取用」写成独立章节（不进 header）。
+  // 原因：它有一两百 token，预算紧张时必须是**可降级**的——
+  // 宁可先丢掉使用说明、保住索引条目，也不能因为它把整个包撑爆。
+  const indexProtocol =
+    intent === 'index'
+      ? [
+          '## 索引使用说明',
+          '',
+          '- 本包只有「有什么 / 在哪」：地址 + 类型 + 名称，**既无签名也无函数体**。',
+          '- 需要实现细节时，索取地址：`路径:行号` 或 `路径:起始-结束`，例如 `src/core.ts:42`、`src/core.ts:42-80`。',
+          '- CodeAtlas 的「按需展开」会把该片段连同行号导出，可直接贴回对话。',
+          '- 未列出的符号是被预算裁掉的，不代表不存在。',
+        ].join('\n')
+      : null;
 
+  const header = headerParts.filter(Boolean).join('\n');
   const treeBlock = renderFileTree(input, fileScores, 80);
 
   const skeletonBlock = renderSkeleton(input, fileScores);
@@ -525,6 +600,9 @@ function renderFocusEdges(result: FocusResult): string | null {
       : null;
   const focusBlock = focusResult ? renderFocusBlock(focusResult, input.focusQuery ?? '') : null;
   const focusEdgeBlock = focusResult ? renderFocusEdges(focusResult) : null;
+
+  /** 索引用途：每行都是可寻址条目（路径:行号 + 签名），按文件重要性 + 行号排序 */
+  const indexLines = intent === 'index' ? buildIndexLines(ranked) : null;
 
   /** api 用途只关心对外契约，内部符号不进包 */
   const symbolPool: RankedSymbol[] =
@@ -563,6 +641,28 @@ function renderFocusEdges(result: FocusResult): string | null {
     count: number,
     layer: { tree: TreeMode; reading: boolean; calls: boolean },
   ): { markdown: string; included: number } => {
+    // 索引用途是独立形态：主列表不是"符号签名表"，而是可寻址条目，
+    // 裁剪单位也从"符号数"变成"索引行数"，所以单独成支。
+    if (intent === 'index') {
+      const lines = indexLines ?? [];
+      const parts = [header];
+      // 使用说明只在能装下至少 5 条索引时才带：
+      // 否则预算全花在"教怎么用"上，真正要找的符号一条都没有，是本末倒置。
+      if (layer.calls && indexProtocol && count >= 5) parts.push(indexProtocol);
+      parts.push(renderIndexSection(lines, count));
+      const trim = renderTrimNote({
+        included: Math.min(count, lines.length),
+        total: lines.length,
+        modulesCovered: new Set(lines.slice(0, count).map((l) => moduleOf(l.file))).size,
+        modulesTotal: totalModules,
+        fullTree: false,
+        readingOmitted: false,
+        callsOmitted: false,
+      });
+      if (trim) parts.push(trim);
+      return { markdown: parts.join('\n\n'), included: Math.min(count, lines.length) };
+    }
+
     const parts = [header];
 
     if (intent === 'health') {
@@ -606,7 +706,7 @@ function renderFocusEdges(result: FocusResult): string | null {
    */
   const search = (layer: Layer): { markdown: string; included: number } | null => {
     let low = 0;
-    let high = symbolPool.length;
+    let high = indexLines ? indexLines.length : symbolPool.length;
     let best: { markdown: string; included: number } | null = null;
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
@@ -647,7 +747,13 @@ function renderFocusEdges(result: FocusResult): string | null {
             { tree: 'none', reading: false, calls: true },
             { tree: 'none', reading: false, calls: false },
           ]
-        : [{ tree: 'none', reading: false, calls: false }];
+        : intent === 'index'
+          ? [
+              // calls 在索引用途里表示"是否带索引使用说明"（纯说明性内容，可先丢）
+              { tree: 'none', reading: false, calls: true },
+              { tree: 'none', reading: false, calls: false },
+            ]
+          : [{ tree: 'none', reading: false, calls: false }];
 
   let chosen = { markdown: header, included: 0 };
   let treeIncluded = false;

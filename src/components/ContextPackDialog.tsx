@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ContextPack, PackIntent } from '../analysis/contextPack';
+import type { SliceOutcome } from '../analysis/slice';
 import type { AiConfig } from '../types/config';
 import { AiError, buildExplainPrompt, streamChat } from '../utils/aiClient';
 import { loadAiKey } from '../utils/configStore';
@@ -27,6 +28,8 @@ interface Props {
   onGenerate: (budget?: number, intent?: PackIntent, focusQuery?: string) => void;
   /** 持久化预算（写入配置），可选 */
   onBudgetChange?: (budget: number) => void;
+  /** 按需展开：把 `路径:行号` 解析成带行号的代码片段 */
+  onSlice: (address: string) => Promise<SliceOutcome>;
   onClose: () => void;
 }
 
@@ -48,15 +51,31 @@ export default function ContextPackDialog({
   ai,
   onGenerate,
   onBudgetChange,
+  onSlice,
   onClose,
 }: Props) {
   const { t } = useTranslation(['analysis', 'common']);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, open, onClose);
-  const [tab, setTab] = useState<'md' | 'json' | 'ai'>('md');
+  const [tab, setTab] = useState<'md' | 'json' | 'ai' | 'slice'>('md');
   const [copied, setCopied] = useState(false);
   const [intent, setIntent] = useState<PackIntent>('overview');
   const [focusQuery, setFocusQuery] = useState('');
+  // ---------- 按需展开 ----------
+  const [sliceAddr, setSliceAddr] = useState('');
+  const [sliceOut, setSliceOut] = useState<SliceOutcome | null>(null);
+  const [sliceBusy, setSliceBusy] = useState(false);
+
+  const runSlice = useCallback(async () => {
+    if (sliceBusy) return;
+    setTab('slice');
+    setSliceBusy(true);
+    try {
+      setSliceOut(await onSlice(sliceAddr));
+    } finally {
+      setSliceBusy(false);
+    }
+  }, [onSlice, sliceAddr, sliceBusy]);
 
   // ---------- AI 解读（默认关闭；只有点按钮才发请求） ----------
   const [aiText, setAiText] = useState('');
@@ -110,13 +129,35 @@ export default function ContextPackDialog({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  const sliceText = sliceOut?.kind === 'ok' ? sliceOut.text : '';
+  const pickCandidate = useCallback(
+    async (path: string, line: number) => {
+      const addr = `${path}:${line}`;
+      setSliceAddr(addr);
+      setSliceBusy(true);
+      try {
+        setSliceOut(await onSlice(addr));
+      } finally {
+        setSliceBusy(false);
+      }
+    },
+    [onSlice],
+  );
+
   const copy = useCallback(async () => {
-    const text = tab === 'ai' ? aiText : tab === 'md' ? pack?.markdown : pack?.json;
+    const text =
+      tab === 'slice'
+        ? sliceText
+        : tab === 'ai'
+          ? aiText
+          : tab === 'md'
+            ? pack?.markdown
+            : pack?.json;
     if (!text) return;
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  }, [pack, tab, aiText]);
+  }, [pack, tab, aiText, sliceText]);
 
   if (!open) return null;
 
@@ -176,6 +217,7 @@ export default function ContextPackDialog({
             <option value="health">{t('analysis:intentHealth')}</option>
             <option value="api">{t('analysis:intentApi')}</option>
             <option value="focus">{t('analysis:intentFocus')}</option>
+            <option value="index">{t('analysis:intentIndex')}</option>
           </select>
           <div className="flex items-center gap-1" role="group" aria-label={t('common:maxTokens')}>
             {[2000, 8000, 32000, 64000].map((b) => (
@@ -203,6 +245,7 @@ export default function ContextPackDialog({
                 ['md', 'Markdown'],
                 ['json', 'JSON'],
                 ['ai', 'AI'],
+                ['slice', t('analysis:sliceTab')],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -258,7 +301,82 @@ export default function ContextPackDialog({
           className="mb-3 min-h-[200px] flex-1 overflow-auto rounded border p-3"
           style={{ background: 'var(--c-bg)', borderColor: 'var(--c-border)' }}
         >
-          {tab === 'ai' ? (
+          {tab === 'slice' ? (
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                <input
+                  data-slice-address
+                  value={sliceAddr}
+                  onChange={(e) => setSliceAddr(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void runSlice();
+                  }}
+                  placeholder={t('analysis:slicePlaceholder')}
+                  aria-label={t('analysis:slicePlaceholder')}
+                  className="min-w-0 flex-1 rounded border px-2 py-1 text-xs"
+                  style={{
+                    background: 'var(--c-bg-2)',
+                    borderColor: 'var(--c-border)',
+                    color: 'var(--c-text)',
+                  }}
+                />
+                <button
+                  data-slice-run
+                  onClick={() => void runSlice()}
+                  disabled={sliceBusy}
+                  className="shrink-0 rounded px-3 py-1 text-white disabled:opacity-50"
+                  style={{ background: 'var(--c-primary)' }}
+                >
+                  {t('analysis:sliceRun')}
+                </button>
+              </div>
+              <p className="mb-2 m-0" style={{ color: 'var(--c-text-2)' }}>
+                {t('analysis:sliceHint')}
+              </p>
+
+              {sliceBusy && <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:analyzing')}</p>}
+
+              {!sliceBusy && !sliceOut && (
+                <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:sliceEmpty')}</p>
+              )}
+
+              {sliceOut?.kind === 'ok' && (
+                <pre data-slice-output className="m-0 whitespace-pre font-mono text-[11.5px] leading-5">
+                  {sliceOut.text}
+                </pre>
+              )}
+
+              {sliceOut?.kind === 'invalid' && (
+                <p style={{ color: 'var(--c-warning)' }}>
+                  {sliceOut.reason === 'empty'
+                    ? t('analysis:sliceEmpty')
+                    : sliceOut.reason === 'read-failed'
+                      ? t('analysis:sliceReadFailed')
+                      : t('analysis:sliceNotFound')}
+                </p>
+              )}
+
+              {sliceOut?.kind === 'ambiguous' && (
+                <>
+                  <p style={{ color: 'var(--c-warning)' }}>{t('analysis:sliceAmbiguous')}</p>
+                  <ul className="m-0 list-none p-0">
+                    {sliceOut.candidates.map((c) => (
+                      <li key={`${c.path}:${c.line}`}>
+                        <button
+                          onClick={() => void pickCandidate(c.path, c.line)}
+                          className="mb-1 rounded border px-2 py-0.5 text-left"
+                          style={{ borderColor: 'var(--c-border)', color: 'var(--c-primary)' }}
+                        >
+                          {c.path}:{c.line}
+                          {c.name ? ` — ${c.name}` : ''}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
+          ) : tab === 'ai' ? (
             <>
               {aiError && <p style={{ color: 'var(--c-warning)' }}>{aiError}</p>}
               {aiRunning && !aiText && (

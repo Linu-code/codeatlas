@@ -191,7 +191,38 @@ test('上下文包用途：任务焦点按关键词只给相关文件，查不�
   await expect(dialog).toContainText('未在符号名或文件路径中找到', { timeout: 40_000 });
 });
 
-test('AI 解读：默认关闭时给出设置引导，且不发任何请求', async ({ page }) => {  await loadFixtureZip(page, zipPath);
+test('符号索引 + 按需展开：只给地址，实现按需取', async ({ page }) => {
+  await loadFixtureZip(page, zipPath);
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+
+  // 索引形态：只有「路径:行号 + 签名」，不放目录树与阅读路线
+  await dialog.locator('[data-pack-intent]').selectOption('index');
+  await expect(dialog).toContainText('## 符号索引', { timeout: 40_000 });
+  await expect(dialog).toContainText('## 索引使用说明');
+  await expect(dialog).toContainText('src/core.ts:');
+  await expect(dialog).not.toContainText('## 目录结构');
+
+  // 按需展开：地址 → 带行号的片段
+  await dialog.getByRole('button', { name: '按需展开' }).click();
+  await dialog.locator('[data-slice-address]').fill('src/core.ts:1-5');
+  await dialog.locator('[data-slice-run]').click();
+
+  const out = dialog.locator('[data-slice-output]');
+  await expect(out).toContainText('// src/core.ts:1-5', { timeout: 20_000 });
+  await expect(out).toContainText("import { add, sub } from './util'");
+  await expect(out).toContainText('  1 | ');
+
+  // 找不到时明确提示，而不是给一段空内容
+  await dialog.locator('[data-slice-address]').fill('src/nope.ts:1');
+  await dialog.locator('[data-slice-run]').click();
+  await expect(dialog).toContainText('找不到该文件或符号', { timeout: 20_000 });
+});
+
+test('AI 解读：默认关闭时给出设置引导，且不发任何请求', async ({ page }) => {
+  await loadFixtureZip(page, zipPath);
 
   // 记录点击后产生的请求，确认默认关闭时确实不联网
   const external: string[] = [];

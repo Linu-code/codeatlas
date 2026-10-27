@@ -195,6 +195,62 @@ describe('上下文包用途', () => {
     const pack = generateContextPack({ ...base, intent: 'focus', focusQuery: 'compute', maxTokens: 400 });
     expect(pack.tokens).toBeLessThanOrEqual(400);
   });
+
+  it('index：只给可寻址条目（路径:行号），不放目录树与阅读路线', () => {
+    const pack = generateContextPack({ ...base, intent: 'index' });
+    expect(pack.markdown).toContain('## 索引使用说明');
+    expect(pack.markdown).toContain('## 符号索引');
+    expect(pack.markdown).toMatch(/`src\/core\.ts:5`/);
+    expect(pack.markdown).not.toContain('## 目录结构');
+    expect(pack.markdown).not.toContain('## 建议阅读路线');
+    expect(pack.markdown).not.toContain('## 技术栈');
+  });
+
+  it('index：预算越小条目越少，且不超预算', () => {
+    // 用 40 文件 / 120 符号的合成项目，才能观察到"预算驱动条目数"的变化
+    const many: FileAnalysis[] = [];
+    for (let i = 0; i < 40; i += 1) {
+      many.push({
+        path: `src/m${Math.floor(i / 5)}/f${i}.ts`,
+        language: 'typescript',
+        definitions: Array.from({ length: 3 }, (_, k) => ({
+          name: `fn${i}_${k}`,
+          kind: 'function' as SymbolDef['kind'],
+          line: k * 10 + 1,
+          endLine: k * 10 + 6,
+          signature: `function fn${i}_${k}(input: Config): Promise<Result>`,
+          exported: true,
+        })),
+        calls: [],
+        references: [],
+        imports: [],
+        hasError: false,
+      });
+    }
+    const manyIndex = buildScopeIndex(many);
+    const base2 = {
+      repoName: 'demo/many',
+      files: many,
+      index: manyIndex,
+      treePaths: many.map((f) => f.path),
+    };
+    const small = generateContextPack({ ...base2, intent: 'index', maxTokens: 800 });
+    const big = generateContextPack({ ...base2, intent: 'index', maxTokens: 8000 });
+
+    expect(big.includedSymbols).toBeGreaterThan(small.includedSymbols);
+    expect(small.tokens).toBeLessThanOrEqual(800);
+    expect(big.tokens).toBeLessThanOrEqual(8000);
+    expect(small.markdown).toContain('## 符号索引');
+  });
+
+  it('index：条目按文件重要性聚集，文件内按行号升序', () => {
+    const pack = generateContextPack({ ...base, intent: 'index', maxTokens: 3000 });
+    const lines = pack.markdown.split('## 符号索引')[1] ?? '';
+    const add = lines.indexOf('src/util.ts:3');
+    const sub = lines.indexOf('src/util.ts:8');
+    expect(add).toBeGreaterThan(-1);
+    expect(sub).toBeGreaterThan(add);
+  });
 });
 
 // ---------- pagerank ----------
