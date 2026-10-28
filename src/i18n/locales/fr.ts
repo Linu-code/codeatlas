@@ -159,6 +159,7 @@ export const fr = {
     aiIdle: 'Cliquez sur « Expliquer par IA » pour que le modèle rédige une visite guidée à partir du paquet de contexte.',
     aiNotConfigured: 'Aucun fournisseur IA configuré. Ouvrez Paramètres → Assistant IA pour choisir Ollama local ou une API en ligne.',
     aiFailed: 'Échec de la requête IA : {{message}}',
+    aiExpanded: '{{count}} extrait(s) de code récupéré(s) à la demande (~{{tokens}} tokens)',
     aiStop: 'Arrêter',
     exportReport: 'Exporter le rapport HTML',
     contextPackEmpty: 'Cliquez ci-dessous pour générer le paquet (aucune IA n’est appelée)',

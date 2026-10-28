@@ -159,6 +159,7 @@ export const de = {
     aiIdle: 'Klicken Sie auf KI-Erklärung, damit das Modell aus dem Kontextpaket eine Projektübersicht schreibt.',
     aiNotConfigured: 'Kein KI-Anbieter konfiguriert. Öffnen Sie Einstellungen → KI-Assistent und wählen Sie lokales Ollama oder eine Online-API.',
     aiFailed: 'KI-Anfrage fehlgeschlagen: {{message}}',
+    aiExpanded: '{{count}} Code-Ausschnitt(e) bei Bedarf geladen (~{{tokens}} tokens)',
     aiStop: 'Stoppen',
     exportReport: 'HTML-Bericht exportieren',
     contextPackEmpty: 'Unten klicken, um das Paket zu erzeugen (es wird keine KI aufgerufen)',

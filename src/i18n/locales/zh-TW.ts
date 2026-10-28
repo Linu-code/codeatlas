@@ -159,6 +159,7 @@ export const zhTW = {
     aiIdle: '點擊下方「AI 解讀」，讓模型根據上下文包撰寫一份專案導讀。',
     aiNotConfigured: '尚未設定 AI 提供方，請到「設定 → AI 助手」選擇本機 Ollama 或線上 API。',
     aiFailed: 'AI 請求失敗：{{message}}',
+    aiExpanded: '已按需展開 {{count}} 處程式碼（約 {{tokens}} tokens）',
     aiStop: '停止',
     exportReport: '匯出 HTML 報告',
     contextPackEmpty: '點擊下方按鈕產生內容包（不會呼叫任何 AI）',

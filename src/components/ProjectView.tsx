@@ -333,7 +333,11 @@ export default function ProjectView({
         // 二进制 / 超大文件 / 读取失败：明确区分，不要把错误当成"符号不存在"
         return { kind: 'invalid', reason: 'read-failed' };
       }
-      const slice = formatSlice(source, resolved.target, { maxTokens: 800 });
+      // 精确地址（符号 / 行段）给更大预算：实测 800 时 6.8%~8.6% 的函数被从中间截断，
+      // 读到半截函数的 AI 会得出错误结论；1500 把截断率降到 3.3%~2.5%。
+      // 整文件请求仍按 800——那是"我想大概看看"，不是"我要这个函数"。
+      const precise = resolved.target.label !== resolved.target.path;
+      const slice = formatSlice(source, resolved.target, { maxTokens: precise ? 1500 : 800 });
       return { kind: 'ok', text: slice.text, tokens: slice.tokens, truncated: slice.truncated };
     },
     [analysis, fs, repo.tree],

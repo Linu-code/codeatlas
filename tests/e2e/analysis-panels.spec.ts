@@ -16,6 +16,7 @@ import {
   buildFixtureZip,
   clickButton,
   clickToolbar,
+  closeSettings,
   loadFixtureZip,
   openFileInTree,
   openSettings,
@@ -258,4 +259,43 @@ test('设置页含 AI 助手分区，可切换提供方并回填默认地址', a
     'http://127.0.0.1:11434',
   );
   await expect(page.locator('[data-ai-model]')).toHaveAttribute('placeholder', 'qwen2.5-coder');
+});
+
+test('AI 按需展开：模型索取 @@expand 后自动切片、第二轮继续，标记对用户不可见', async ({ page }) => {
+  const calls: string[] = [];
+  // 假模型：第一轮索取实现，第二轮给出结论（SSE 格式与 OpenAI 兼容）
+  await page.route('**/chat/completions', async (route) => {
+    calls.push(route.request().postData() ?? '');
+    const text =
+      calls.length === 1
+        ? '先看核心实现。\n@@expand src/core.ts:5\n'
+        : '结论：核心逻辑在 src/core.ts。\n';
+    const body = `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`;
+    await route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body });
+  });
+
+  await page.goto('/');
+  await openSettings(page);
+  await page.getByRole('button', { name: /AI 助手|AI Assistant/ }).click();
+  await page.locator('[data-ai-provider]').selectOption('openai');
+  await page.locator('[data-ai-base-url]').fill('http://127.0.0.1:18123/v1');
+  await page.locator('[data-ai-model]').fill('fake-model');
+  await closeSettings(page);
+
+  await loadFixtureZip(page, zipPath);
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+  await dialog.locator('[data-ai-explain]').click();
+
+  // 两轮内容都在，标记行被过滤掉
+  await expect(dialog).toContainText('结论：核心逻辑在 src/core.ts', { timeout: 40_000 });
+  await expect(dialog).toContainText('先看核心实现');
+  await expect(dialog).not.toContainText('@@expand');
+
+  // 展开计数与第二轮请求里确实带了真实代码
+  await expect(dialog.locator('[data-ai-rounds]')).toContainText('1');
+  expect(calls).toHaveLength(2);
+  expect(calls[1]).toContain('const x');
 });

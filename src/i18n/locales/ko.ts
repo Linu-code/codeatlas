@@ -159,6 +159,7 @@ export const ko = {
     aiIdle: '아래의 AI 해설을 누르면 컨텍스트 팩을 바탕으로 프로젝트 해설을 생성합니다.',
     aiNotConfigured: 'AI 제공자가 설정되지 않았습니다. 설정 → AI 어시스턴트에서 로컬 Ollama 또는 온라인 API를 선택하세요.',
     aiFailed: 'AI 요청 실패: {{message}}',
+    aiExpanded: '필요에 따라 코드 {{count}}곳을 가져왔습니다 (약 {{tokens}} tokens)',
     aiStop: '중지',
     exportReport: 'HTML 리포트 내보내기',
     contextPackEmpty: '아래 버튼을 눌러 컨텍스트 팩을 생성하세요(AI를 호출하지 않습니다)',

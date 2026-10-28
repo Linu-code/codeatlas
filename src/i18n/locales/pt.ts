@@ -159,6 +159,7 @@ export const pt = {
     aiIdle: 'Clique em Explicar com IA para o modelo escrever um guia do projeto a partir do pacote de contexto.',
     aiNotConfigured: 'Nenhum provedor de IA configurado. Abra Configurações → Assistente de IA para escolher Ollama local ou uma API online.',
     aiFailed: 'Falha na requisição de IA: {{message}}',
+    aiExpanded: '{{count}} trecho(s) de código obtido(s) sob demanda (~{{tokens}} tokens)',
     aiStop: 'Parar',
     exportReport: 'Exportar relatório HTML',
     contextPackEmpty: 'Clique abaixo para gerar o pacote (nenhuma IA é chamada)',

@@ -164,6 +164,7 @@ export const ja = {
     aiIdle: '下の「AI 解説」を押すと、コンテキストパックからプロジェクト解説を生成します。',
     aiNotConfigured: 'AI プロバイダーが未設定です。「設定 → AI アシスタント」でローカル Ollama かオンライン API を選んでください。',
     aiFailed: 'AI リクエストに失敗しました：{{message}}',
+    aiExpanded: '必要に応じて {{count}} 件のコードを取得しました（約 {{tokens}} tokens）',
     aiStop: '停止',
     exportReport: 'HTML レポートを書き出し',
     contextPackEmpty: '下のボタンで生成します（AI は一切呼び出しません）',

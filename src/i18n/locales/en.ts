@@ -164,6 +164,7 @@ export const en = {
     aiIdle: 'Press AI explain to have the model write a project walkthrough from the context pack.',
     aiNotConfigured: 'No AI provider configured. Open Settings → AI Assistant to pick local Ollama or an online API.',
     aiFailed: 'AI request failed: {{message}}',
+    aiExpanded: 'Pulled {{count}} code slice(s) on demand (~{{tokens}} tokens)',
     aiStop: 'Stop',
     exportReport: 'Export HTML report',
     contextPackEmpty: 'Click the button below to generate the pack (no AI is called)',

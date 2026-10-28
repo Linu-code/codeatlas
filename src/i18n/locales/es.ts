@@ -159,6 +159,7 @@ export const es = {
     aiIdle: 'Pulsa «Explicar con IA» para que el modelo redacte una guía del proyecto a partir del paquete de contexto.',
     aiNotConfigured: 'No hay proveedor de IA configurado. Abre Ajustes → Asistente de IA para elegir Ollama local o una API en línea.',
     aiFailed: 'La petición de IA falló: {{message}}',
+    aiExpanded: 'Se extrajeron {{count}} fragmento(s) de código (~{{tokens}} tokens)',
     aiStop: 'Detener',
     exportReport: 'Exportar informe HTML',
     contextPackEmpty: 'Pulsa el botón para generar el paquete (no se llama a ninguna IA)',

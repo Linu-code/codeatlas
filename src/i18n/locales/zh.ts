@@ -167,6 +167,7 @@ export const zh = {
     aiIdle: '点击下方「AI 解读」，让模型基于上下文包写一份项目导读。',
     aiNotConfigured: '尚未配置 AI 提供方，请到「设置 → AI 助手」选择本地 Ollama 或在线 API。',
     aiFailed: 'AI 请求失败：{{message}}',
+    aiExpanded: '已按需展开 {{count}} 处代码（约 {{tokens}} tokens）',
     aiStop: '停止',
     exportReport: '导出 HTML 报告',
     contextPackEmpty: '点击下方按钮生成上下文包（不会调用任何 AI）',

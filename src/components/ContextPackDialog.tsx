@@ -13,7 +13,8 @@ import { useTranslation } from 'react-i18next';
 import type { ContextPack, PackIntent } from '../analysis/contextPack';
 import type { SliceOutcome } from '../analysis/slice';
 import type { AiConfig } from '../types/config';
-import { AiError, buildExplainPrompt, streamChat } from '../utils/aiClient';
+import { AiError, buildExplainPrompt, streamChatMessages } from '../utils/aiClient';
+import { runExpandingChat, type ExpandRound } from '../utils/aiExpand';
 import { loadAiKey } from '../utils/configStore';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -81,6 +82,7 @@ export default function ContextPackDialog({
   const [aiText, setAiText] = useState('');
   const [aiRunning, setAiRunning] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiRounds, setAiRounds] = useState<ExpandRound[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
   const stopAi = useCallback(() => {
@@ -101,14 +103,26 @@ export default function ContextPackDialog({
 
     stopAi();
     setAiText('');
+    setAiRounds([]);
     setAiRunning(true);
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
-      await streamChat(ai, loadAiKey(), buildExplainPrompt(pack.markdown), {
+      // 索引包里没有实现细节，模型会输出 `@@expand 路径:行号` 索取；
+      // 这里捕获、切片、回灌，用户只看到干净正文 + 「已展开 N 处」。
+      await runExpandingChat({
+        messages: [{ role: 'user', content: buildExplainPrompt(pack.markdown, { expand: true }) }],
+        chat: (messages, handlers) =>
+          streamChatMessages(ai, loadAiKey(), messages, {
+            signal: handlers.signal,
+            onDelta: handlers.onDelta,
+          }),
+        resolve: onSlice,
+        maxRounds: 3,
         signal: controller.signal,
         onDelta: (delta) => setAiText((prev) => prev + delta),
+        onRound: (round) => setAiRounds((prev) => [...prev, round]),
       });
     } catch (e) {
       if (e instanceof AiError && e.code === 'aborted') return;
@@ -118,7 +132,7 @@ export default function ContextPackDialog({
       if (abortRef.current === controller) abortRef.current = null;
       setAiRunning(false);
     }
-  }, [pack, ai, t, stopAi]);
+  }, [pack, ai, t, stopAi, onSlice]);
 
   // 关闭对话框 / 组件卸载：中断在途请求（避免响应回来时对已卸载组件 setState）
   useEffect(() => {
@@ -379,6 +393,19 @@ export default function ContextPackDialog({
           ) : tab === 'ai' ? (
             <>
               {aiError && <p style={{ color: 'var(--c-warning)' }}>{aiError}</p>}
+              {aiRounds.length > 0 && (
+                <p
+                  data-ai-rounds
+                  className="m-0 mb-1"
+                  style={{ color: 'var(--c-text-2)' }}
+                  title={aiRounds.map((r) => `${r.address}${r.ok ? '' : ' (×)'}`).join('\n')}
+                >
+                  {t('analysis:aiExpanded', {
+                    count: aiRounds.length,
+                    tokens: aiRounds.reduce((n, r) => n + r.tokens, 0),
+                  })}
+                </p>
+              )}
               {aiRunning && !aiText && (
                 <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:aiRunning')}</p>
               )}
