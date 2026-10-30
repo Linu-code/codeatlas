@@ -20,7 +20,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 # N5①：原生目录选择对话框（rfd 默认不拉 GTK/objc，只带 windows-sys，体积可控）
-rfd = "0.15"
+rfd = "0.17"
 
 [profile.release]
 # exe 体积优化：去调试符号 + 压缩
