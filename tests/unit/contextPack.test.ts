@@ -207,6 +207,19 @@ describe('上下文包用途', () => {
     expect(pack.markdown).not.toContain('## 技术栈');
   });
 
+  it('index：带模块地图，且每个模块地址都能下钻', () => {
+    const pack = generateContextPack({ ...base, intent: 'index' });
+    expect(pack.markdown).toContain('## 模块地图');
+
+    const dirs = [...pack.markdown.matchAll(/^- `([^`]+)\/` \d+ 符号/gm)].map((m) => m[1]);
+    expect(dirs.length).toBeGreaterThan(0);
+    for (const dir of dirs) {
+      const addr = dir === '.' ? './' : `${dir}/`;
+      const r = resolveAddress(addr, { files: FILES, paths: FILES.map((f) => f.path) });
+      expect(r.kind).toBe('digest');
+    }
+  });
+
   it('index：预算越小条目越少，且不超预算', () => {
     // 用 40 文件 / 120 符号的合成项目，才能观察到"预算驱动条目数"的变化
     const many: FileAnalysis[] = [];
@@ -248,10 +261,11 @@ describe('上下文包用途', () => {
     const pack = generateContextPack({ ...base, intent: 'index' });
     // 曾经写死 `src/core.ts:42`——真实仓库里不存在，模型照着要就会失败
     expect(pack.markdown).not.toContain('src/core.ts:42');
-    expect(pack.markdown).toContain('本包第一条');
 
     const sample = /例如 `([^`:]+:\d+)`/.exec(pack.markdown)?.[1];
     expect(sample).toBeTruthy();
+    // 示例地址必须真的在包内（否则模型照抄就是一次失败请求）
+    expect(pack.markdown.split('## 符号索引')[1]).toContain(sample!);
     const resolved = resolveAddress(sample!, { files: FILES, paths: FILES.map((f) => f.path) });
     expect(resolved.kind).toBe('ok');
     if (resolved.kind === 'ok') expect(resolved.target.snapped).toBe(true);

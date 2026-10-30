@@ -155,7 +155,7 @@ export const zh = {
     focusQueryRun: '生成',
     focusQueryHint: '按关键词检索相关文件，只把这一块给 AI',
     sliceTab: '按需展开',
-    slicePlaceholder: '地址，如 src/core.ts:42 或 src/core.ts#build',
+    slicePlaceholder: '地址或目录，如 src/core.ts:42、src/renderer/',
     sliceRun: '展开',
     sliceHint: '只取这一段代码，不生成整份上下文',
     sliceEmpty: '输入地址后点「展开」',

@@ -152,7 +152,7 @@ export const ja = {
     focusQueryRun: '生成',
     focusQueryHint: 'キーワードで関連ファイルを検索し、その範囲だけを AI に渡します',
     sliceTab: '必要時に展開',
-    slicePlaceholder: 'アドレス（例: src/core.ts:42 / src/core.ts#build）',
+    slicePlaceholder: 'アドレスまたはディレクトリ（例: src/core.ts:42 / src/renderer/）',
     sliceRun: '展開',
     sliceHint: 'この範囲だけを取得し、コンテキスト全体は生成しません',
     sliceEmpty: 'アドレスを入力して「展開」を押してください',

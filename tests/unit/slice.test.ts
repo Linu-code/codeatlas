@@ -101,6 +101,21 @@ describe('resolveAddress', () => {
     }
   });
 
+  it('目录地址返回摘要；根目录写作 ./', () => {
+    expect(resolveAddress('src/', ctx)).toEqual({ kind: 'digest', dir: 'src' });
+    expect(resolveAddress('src/a/', ctx)).toEqual({ kind: 'digest', dir: 'src/a' });
+    expect(resolveAddress('./', ctx)).toEqual({ kind: 'digest', dir: '' });
+    expect(resolveAddress('src/nope/', ctx)).toEqual({ kind: 'invalid', reason: 'not-found' });
+  });
+
+  it('index: 前缀给出文件符号清单（不是代码）', () => {
+    expect(resolveAddress('index:src/core.ts', ctx)).toEqual({ kind: 'fileIndex', path: 'src/core.ts' });
+    expect(resolveAddress('INDEX:core.ts', ctx)).toEqual({ kind: 'fileIndex', path: 'src/core.ts' });
+    expect(resolveAddress('index:nope.ts', ctx)).toEqual({ kind: 'invalid', reason: 'not-found' });
+    // 目录写法落到摘要
+    expect(resolveAddress('index:src/', ctx)).toEqual({ kind: 'digest', dir: 'src' });
+  });
+
   it('只有路径时表示整个文件（结束行不限）', () => {
     const r = resolveAddress('docs/readme.md', ctx);
     expect(r.kind).toBe('ok');

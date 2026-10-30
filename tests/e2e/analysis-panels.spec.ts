@@ -249,6 +249,35 @@ test('单行地址落在函数内部时，展开到整个函数（而不是 ±6 
   await expect(out).toContainText('return total;');
 });
 
+test('分级下钻：目录摘要 → 文件符号清单 → 代码', async ({ page }) => {
+  await loadFixtureZip(page, zipPath);
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+
+  await dialog.getByRole('button', { name: '按需展开' }).click();
+
+  // 一级：目录摘要（不是代码，是下一级的入口）
+  await dialog.locator('[data-slice-address]').fill('src/');
+  await dialog.locator('[data-slice-run]').click();
+  const out = dialog.locator('[data-slice-output]');
+  await expect(out).toContainText('// 目录 src/', { timeout: 20_000 });
+  await expect(out).toContainText('`src/core.ts`');
+
+  // 二级：文件里全部符号的地址
+  await dialog.locator('[data-slice-address]').fill('index:src/core.ts');
+  await dialog.locator('[data-slice-run]').click();
+  await expect(out).toContainText('// 文件 src/core.ts', { timeout: 20_000 });
+  await expect(out).toContainText('src/core.ts:');
+  await expect(out).toContainText('compute');
+
+  // 三级：按地址取实现
+  await dialog.locator('[data-slice-address]').fill('src/core.ts:4');
+  await dialog.locator('[data-slice-run]').click();
+  await expect(out).toContainText('— compute', { timeout: 20_000 });
+});
+
 test('AI 解读：默认关闭时给出设置引导，且不发任何请求', async ({ page }) => {
   await loadFixtureZip(page, zipPath);
 

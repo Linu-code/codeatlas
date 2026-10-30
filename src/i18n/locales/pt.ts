@@ -147,7 +147,7 @@ export const pt = {
     focusQueryRun: 'Gerar',
     focusQueryHint: 'Busca arquivos relacionados por palavra-chave e envia apenas essa parte à IA',
     sliceTab: 'Expandir sob demanda',
-    slicePlaceholder: 'Endereço, ex. src/core.ts:42 ou src/core.ts#build',
+    slicePlaceholder: 'Endereço ou pasta, ex. src/core.ts:42 ou src/renderer/',
     sliceRun: 'Expandir',
     sliceHint: 'Extrai apenas este trecho em vez do pacote inteiro',
     sliceEmpty: 'Digite um endereço e clique em Expandir',

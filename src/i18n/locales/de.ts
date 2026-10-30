@@ -147,7 +147,7 @@ export const de = {
     focusQueryRun: 'Erzeugen',
     focusQueryHint: 'Sucht zugehörige Dateien per Stichwort und übergibt nur diesen Ausschnitt an die KI',
     sliceTab: 'Bedarfsweise ausklappen',
-    slicePlaceholder: 'Adresse, z. B. src/core.ts:42 oder src/core.ts#build',
+    slicePlaceholder: 'Adresse oder Ordner, z. B. src/core.ts:42 oder src/renderer/',
     sliceRun: 'Ausklappen',
     sliceHint: 'Holt nur diesen Ausschnitt statt des gesamten Kontextpakets',
     sliceEmpty: 'Adresse eingeben und „Ausklappen“ drücken',

@@ -147,7 +147,7 @@ export const ko = {
     focusQueryRun: '생성',
     focusQueryHint: '키워드로 관련 파일을 검색해 해당 부분만 AI에 전달합니다',
     sliceTab: '필요할 때 펼치기',
-    slicePlaceholder: '주소 (예: src/core.ts:42, src/core.ts#build)',
+    slicePlaceholder: '주소 또는 디렉터리 (예: src/core.ts:42, src/renderer/)',
     sliceRun: '펼치기',
     sliceHint: '이 구간만 가져오고 전체 컨텍스트는 만들지 않습니다',
     sliceEmpty: '주소를 입력한 뒤 "펼치기"를 누르세요',

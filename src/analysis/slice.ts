@@ -35,6 +35,10 @@ export interface SliceCandidate {
 
 export type AddressResult =
   | { kind: 'ok'; target: SliceTarget }
+  /** `dir/` —— 目录摘要（子目录 + 文件 + 符号数），用于逐级下钻 */
+  | { kind: 'digest'; dir: string }
+  /** `index:path/file.ts` —— 该文件全部符号的地址清单 */
+  | { kind: 'fileIndex'; path: string }
   | { kind: 'ambiguous'; candidates: SliceCandidate[] }
   | { kind: 'invalid'; reason: 'empty' | 'not-found' };
 
@@ -62,6 +66,21 @@ function matchPath(input: string, paths: string[]): { path: string } | { candida
   if (hits.length === 1) return { path: hits[0] };
   if (hits.length > 1) return { candidates: hits.slice(0, 10) };
   return null;
+}
+
+/**
+ * 目录地址归一：去掉 `./` 前缀与尾部斜杠，根目录返回空串。
+ * `./` 与 `.` 都表示仓库根 —— 模块地图对根目录就是用 `./` 标注的。
+ */
+function normalizeDirInput(raw: string): string {
+  const d = raw.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+  return d === '.' ? '' : d;
+}
+
+function dirExists(dir: string, paths: string[]): boolean {
+  if (dir === '') return paths.length > 0;
+  const prefix = `${dir}/`;
+  return paths.some((p) => p.startsWith(prefix));
 }
 
 /**
@@ -149,6 +168,34 @@ export function resolveAddress(rawAddress: string, ctx: ResolveContext): Address
     };
   }
 
+  // ---------- 2.5 显式索引：`index:path` 或 `index:dir/` ----------
+  if (address.toLowerCase().startsWith('index:')) {
+    const target = address.slice(address.indexOf(':') + 1).replace(/^\.\//, '');
+    if (target.endsWith('/') || target === '' || target === '.') {
+      const dir = normalizeDirInput(target);
+      const exists = dirExists(dir, ctx.paths);
+      return exists ? { kind: 'digest', dir } : { kind: 'invalid', reason: 'not-found' };
+    }
+    const matched = matchPath(target, ctx.paths);
+    if (!matched) return { kind: 'invalid', reason: 'not-found' };
+    if ('candidates' in matched) {
+      return {
+        kind: 'ambiguous',
+        candidates: matched.candidates.map((p) => ({ path: p, line: 1, name: '' })),
+      };
+    }
+    return { kind: 'fileIndex', path: matched.path };
+  }
+
+  // ---------- 2.6 目录摘要：`src/analysis/` 或 `./`（仓库根） ----------
+  // 必须放在 `index:` 之后：`index:src/` 也以 `/` 结尾，否则会被当成目录名。
+  if (address.endsWith('/') || address === '.') {
+    const dir = normalizeDirInput(address);
+    return dirExists(dir, ctx.paths)
+      ? { kind: 'digest', dir }
+      : { kind: 'invalid', reason: 'not-found' };
+  }
+
   // ---------- 3. 只有路径：整个文件 ----------
   if (address.includes('/') || /\.[a-z0-9]+$/i.test(address)) {
     const matched = matchPath(address, ctx.paths);
@@ -214,6 +261,10 @@ export interface SliceResult {
  */
 export type SliceOutcome =
   | { kind: 'ok'; text: string; tokens: number; truncated: boolean }
+  /** 目录摘要（`dir/`）—— 不是代码，是下一级地址入口 */
+  | { kind: 'digest'; text: string; tokens: number }
+  /** 单文件符号清单（`index:path`） */
+  | { kind: 'fileIndex'; text: string; tokens: number }
   | { kind: 'ambiguous'; candidates: SliceCandidate[] }
   | { kind: 'invalid'; reason: 'empty' | 'not-found' | 'read-failed' };
 

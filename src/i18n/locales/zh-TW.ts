@@ -147,7 +147,7 @@ export const zhTW = {
     focusQueryRun: '產生',
     focusQueryHint: '按關鍵詞檢索相關檔案，只把這一塊給 AI',
     sliceTab: '按需展開',
-    slicePlaceholder: '位址，如 src/core.ts:42 或 src/core.ts#build',
+    slicePlaceholder: '位址或目錄，如 src/core.ts:42、src/renderer/',
     sliceRun: '展開',
     sliceHint: '只取這一段程式碼，不產生整份上下文',
     sliceEmpty: '輸入位址後點「展開」',

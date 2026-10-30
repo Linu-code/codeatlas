@@ -43,6 +43,8 @@ import {
   type PackIntent,
 } from '../analysis/contextPack';
 import { formatSlice, resolveAddress, type SliceOutcome } from '../analysis/slice';
+import { buildDirectoryDigest, buildFileSymbolIndex } from '../analysis/hierarchy';
+import { estimateTokens } from '../utils/tokenEstimator';
 
 const PACK_INTENT_KEY = 'codeatlas.packIntent';
 
@@ -354,6 +356,17 @@ export default function ProjectView({
         files: bundle.files,
         paths: flattenFiles(repo.tree),
       });
+      // 分级寻址：`dir/` 给目录摘要，`index:path` 给文件符号清单。
+      // 这两种都不是代码，而是**下一级地址入口**——它们是"索引包覆盖不到"的解药。
+      if (resolved.kind === 'digest') {
+        const digest = buildDirectoryDigest(resolved.dir, bundle.files, { maxTokens: 1200 });
+        return { kind: 'digest', text: digest.text, tokens: estimateTokens(digest.text) };
+      }
+      if (resolved.kind === 'fileIndex') {
+        const index = buildFileSymbolIndex(resolved.path, bundle.files);
+        if (!index) return { kind: 'invalid', reason: 'not-found' };
+        return { kind: 'fileIndex', text: index.text, tokens: estimateTokens(index.text) };
+      }
       if (resolved.kind !== 'ok') return resolved;
 
       let source: string;

@@ -147,7 +147,7 @@ export const ru = {
     focusQueryRun: 'Создать',
     focusQueryHint: 'Ищет связанные файлы по ключевому слову и передаёт ИИ только этот фрагмент',
     sliceTab: 'Развернуть по запросу',
-    slicePlaceholder: 'Адрес, напр. src/core.ts:42 или src/core.ts#build',
+    slicePlaceholder: 'Адрес или каталог, напр. src/core.ts:42 или src/renderer/',
     sliceRun: 'Развернуть',
     sliceHint: 'Берёт только этот фрагмент вместо всего пакета контекста',
     sliceEmpty: 'Введите адрес и нажмите «Развернуть»',

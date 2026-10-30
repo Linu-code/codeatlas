@@ -27,6 +27,7 @@ function displayModule(m: string): string {
 import { estimateTokens } from '../utils/tokenEstimator';
 import type { FileMetrics } from './metrics';
 import { resolveFocus, type FocusResult } from './focus';
+import { buildModuleMap } from './hierarchy';
 import type { FileEdge } from './importResolver';
 
 /**
@@ -395,18 +396,23 @@ function buildIndexLines(ranked: RankedSymbol[]): { text: string; file: string }
   return out;
 }
 
-/** 索引使用说明：示例地址取自包内第一条，保证"照着要"一定能拿到 */
+/**
+ * 索引使用说明：示例地址取自包内第一条，保证"照着要"一定能拿到。
+ * 同时教模型**逐级下钻**的三级地址——索引包只能装下样本，剩下的 98% 靠它走进去。
+ */
 function buildIndexProtocol(lines: { text: string }[]): string {
   const sample = /`([^`]+:\d+)`/.exec(lines[0]?.text ?? '')?.[1];
-  const example = sample
-    ? `，例如 \`${sample}\`（本包第一条）、\`${sample.replace(/:\d+$/, '')}#符号名\``
-    : '';
+  const fileOfSample = sample ? sample.replace(/:\d+$/, '') : null;
+  const example = sample ? `，例如 \`${sample}\`` : '';
   return [
     '## 索引使用说明',
     '',
     '- 本包只有「有什么 / 在哪」：地址 + 类型 + 名称，**既无签名也无函数体**。',
-    `- 需要实现细节时，索取地址：\`路径:行号\` 或 \`路径起始-结束\`${example}。`,
-    '- CodeAtlas 的「按需展开」会把该片段连同行号导出，可直接贴回对话；单行地址会**自动扩展到整个函数**。',
+    `- 取代码：\`路径:行号\` 或 \`路径:起始-结束\`${example}；单行地址会自动扩展到整个函数。`,
+    '- 找不到想要的符号时**逐级下钻**，不要猜：',
+    '  1. `目录/`：目录摘要（子目录 / 文件 / 各自符号数）',
+    `  2. \`index:${fileOfSample ?? '路径/文件.ts'}\`：该文件**全部**符号及地址`,
+    '  3. `路径:行号`：取实现',
     '- 未列出的符号是被预算裁掉的，不代表不存在。',
   ].join('\n');
 }
@@ -497,7 +503,8 @@ function renderFocusEdges(result: FocusResult): string | null {
   return lines.join('\n');
 }
 
-/** 第 4+5 步：按预算裁剪并格式化 */export function generateContextPack(input: ContextPackInput): ContextPack {
+/** 第 4+5 步：按预算裁剪并格式化 */
+export function generateContextPack(input: ContextPackInput): ContextPack {
   const budget = input.maxTokens;
   const intent: PackIntent = input.intent ?? 'overview';
   const ranked = rankSymbols(input);
@@ -533,7 +540,9 @@ function renderFocusEdges(result: FocusResult): string | null {
     '',
     '> 本文件由 CodeAtlas 本地静态分析生成（无 AI 参与）。',
     `> 内容：${INTENT_SCOPE[intent]}`,
-    '> 符号只含签名（无函数体）：需要实现细节时，请按 `路径:行号` 打开源码。',
+    intent === 'index'
+      ? '> 索引不含签名与函数体；需要实现时按 `路径:行号` 或 `目录/` 逐级索取。'
+      : '> 符号只含签名（无函数体）：需要实现细节时，请按 `路径:行号` 打开源码。',
     '',
     '## 项目概览',
     `- 仓库：${input.repoName}${input.branch ? ` @${input.branch}` : ''}`,
@@ -653,28 +662,6 @@ function renderFocusEdges(result: FocusResult): string | null {
     count: number,
     layer: { tree: TreeMode; reading: boolean; calls: boolean },
   ): { markdown: string; included: number } => {
-    // 索引用途是独立形态：主列表不是"符号签名表"，而是可寻址条目，
-    // 裁剪单位也从"符号数"变成"索引行数"，所以单独成支。
-    if (intent === 'index') {
-      const lines = indexLines ?? [];
-      const parts = [header];
-      // 使用说明只在能装下至少 5 条索引时才带：
-      // 否则预算全花在"教怎么用"上，真正要找的符号一条都没有，是本末倒置。
-      if (layer.calls && indexProtocol && count >= 5) parts.push(indexProtocol);
-      parts.push(renderIndexSection(lines, count));
-      const trim = renderTrimNote({
-        included: Math.min(count, lines.length),
-        total: lines.length,
-        modulesCovered: new Set(lines.slice(0, count).map((l) => moduleOf(l.file))).size,
-        modulesTotal: totalModules,
-        fullTree: false,
-        readingOmitted: false,
-        callsOmitted: false,
-      });
-      if (trim) parts.push(trim);
-      return { markdown: parts.join('\n\n'), included: Math.min(count, lines.length) };
-    }
-
     const parts = [header];
 
     if (intent === 'health') {
@@ -718,7 +705,7 @@ function renderFocusEdges(result: FocusResult): string | null {
    */
   const search = (layer: Layer): { markdown: string; included: number } | null => {
     let low = 0;
-    let high = indexLines ? indexLines.length : symbolPool.length;
+    let high = symbolPool.length;
     let best: { markdown: string; included: number } | null = null;
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
@@ -767,14 +754,84 @@ function renderFocusEdges(result: FocusResult): string | null {
             ]
           : [{ tree: 'none', reading: false, calls: false }];
 
+  /**
+   * 索引的独立组装。
+   *
+   * 与其它用途的根本差别：这里的主列表是**可寻址条目**，而且必须配一张
+   * 「模块地图」——地图保证每个模块都能被寻址，即使符号样本一条都没覆盖到它。
+   * 实测 Vue（5055 符号）2000 预算只列得出 93 条（1.8%），有了地图之后，
+   * 剩下的 98% 也能靠 `目录/` → `index:文件` 两级走到。
+   */
+  const moduleMap = intent === 'index' ? buildModuleMap(input.files, ranked) : null;
+  const moduleMapSection = moduleMap
+    ? ['## 模块地图（`目录/` — 符号数 — 关键符号）', '', moduleMap.text].join('\n')
+    : null;
+
+  const assembleIndex = (
+    count: number,
+    mode: { map: boolean; protocol: boolean },
+  ): { markdown: string; included: number } => {
+    const lines = indexLines ?? [];
+    const parts = [header];
+    // 使用说明只在装得下 ≥5 条索引时才带：预算全花在"教怎么用"上是本末倒置
+    if (mode.protocol && indexProtocol && count >= 5) parts.push(indexProtocol);
+    if (mode.map && moduleMapSection) parts.push(moduleMapSection);
+    parts.push(renderIndexSection(lines, count));
+
+    const trim = renderTrimNote({
+      included: Math.min(count, lines.length),
+      total: lines.length,
+      modulesCovered: new Set(lines.slice(0, count).map((l) => moduleOf(l.file))).size,
+      modulesTotal: totalModules,
+      fullTree: false,
+      readingOmitted: false,
+      callsOmitted: false,
+    });
+    if (trim) parts.push(trim);
+    return { markdown: parts.join('\n\n'), included: Math.min(count, lines.length) };
+  };
+
+  const searchIndex = (mode: { map: boolean; protocol: boolean }) => {
+    const lines = indexLines ?? [];
+    let low = 0;
+    let high = lines.length;
+    let best: { markdown: string; included: number } | null = null;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const candidate = assembleIndex(mid, mode);
+      if (estimateTokens(candidate.markdown) <= budget * 0.95) {
+        best = candidate;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return best;
+  };
+
   let chosen = { markdown: header, included: 0 };
   let treeIncluded = false;
-  for (const layer of LADDER) {
-    const result = search(layer);
-    if (result) {
-      chosen = result;
-      treeIncluded = layer.tree === 'full';
-      break;
+  if (intent === 'index') {
+    // 降级顺序：说明 + 地图 → 地图 → 都不要（保留样本符号）
+    for (const mode of [
+      { map: true, protocol: true },
+      { map: true, protocol: false },
+      { map: false, protocol: false },
+    ]) {
+      const result = searchIndex(mode);
+      if (result) {
+        chosen = result;
+        break;
+      }
+    }
+  } else {
+    for (const layer of LADDER) {
+      const result = search(layer);
+      if (result) {
+        chosen = result;
+        treeIncluded = layer.tree === 'full';
+        break;
+      }
     }
   }
 

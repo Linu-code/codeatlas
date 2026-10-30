@@ -147,7 +147,7 @@ export const es = {
     focusQueryRun: 'Generar',
     focusQueryHint: 'Busca archivos relacionados por palabra clave y entrega solo esa parte a la IA',
     sliceTab: 'Expandir bajo demanda',
-    slicePlaceholder: 'Dirección, p. ej. src/core.ts:42 o src/core.ts#build',
+    slicePlaceholder: 'Dirección o carpeta, p. ej. src/core.ts:42 o src/renderer/',
     sliceRun: 'Expandir',
     sliceHint: 'Extrae solo este fragmento en lugar de todo el paquete',
     sliceEmpty: 'Escribe una dirección y pulsa Expandir',

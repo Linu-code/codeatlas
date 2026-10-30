@@ -147,7 +147,10 @@ export default function ContextPackDialog({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const sliceText = sliceOut?.kind === 'ok' ? sliceOut.text : '';
+  const sliceText =
+    sliceOut && (sliceOut.kind === 'ok' || sliceOut.kind === 'digest' || sliceOut.kind === 'fileIndex')
+      ? sliceOut.text
+      : '';
   const pickCandidate = useCallback(
     async (path: string, line: number) => {
       const addr = `${path}:${line}`;
@@ -358,7 +361,9 @@ export default function ContextPackDialog({
                 <p style={{ color: 'var(--c-text-2)' }}>{t('analysis:sliceEmpty')}</p>
               )}
 
-              {sliceOut?.kind === 'ok' && (
+              {(sliceOut?.kind === 'ok' ||
+                sliceOut?.kind === 'digest' ||
+                sliceOut?.kind === 'fileIndex') && (
                 <pre data-slice-output className="m-0 whitespace-pre font-mono text-[11.5px] leading-5">
                   {sliceOut.text}
                 </pre>

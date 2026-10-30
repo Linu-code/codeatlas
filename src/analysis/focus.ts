@@ -15,6 +15,7 @@
  */
 
 import type { FileEdge } from './importResolver';
+import { isTestPath } from './paths';
 
 /** 检索所需的最小符号信息（contextPack 的 RankedSymbol 结构上兼容） */
 export interface FocusSymbol {
@@ -82,14 +83,6 @@ export function tokenizeQuery(query: string): string[] {
 /** 是否为纯 CJK 词（标识符里不会出现，只能匹配中文目录用途文案） */
 function isCjk(term: string): boolean {
   return /[\u4e00-\u9fff]/.test(term);
-}
-
-/** 是否为测试 / 夹具路径：命中权重需要打折 */
-const TEST_PATH_RE =
-  /(^|\/)(__tests__|__mocks__|tests?|specs?|e2e|fixtures?|examples?|benchmarks?)\/|\.(test|spec|bench)\.[a-z]+$/i;
-
-function isTestPath(file: string): boolean {
-  return TEST_PATH_RE.test(file);
 }
 
 /** 单条符号名的匹配得分 */

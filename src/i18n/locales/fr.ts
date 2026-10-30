@@ -147,7 +147,7 @@ export const fr = {
     focusQueryRun: 'Générer',
     focusQueryHint: 'Recherche les fichiers liés par mot-clé et ne transmet que cette partie à l’IA',
     sliceTab: 'Extraire à la demande',
-    slicePlaceholder: 'Adresse, ex. src/core.ts:42 ou src/core.ts#build',
+    slicePlaceholder: 'Adresse ou dossier, ex. src/core.ts:42 ou src/renderer/',
     sliceRun: 'Extraire',
     sliceHint: 'Récupère uniquement ce fragment au lieu de tout le contexte',
     sliceEmpty: 'Saisissez une adresse puis Extraire',

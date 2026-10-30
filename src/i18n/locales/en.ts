@@ -152,7 +152,7 @@ export const en = {
     focusQueryRun: 'Generate',
     focusQueryHint: 'Retrieve related files by keyword and give the AI only that slice',
     sliceTab: 'Expand on demand',
-    slicePlaceholder: 'Address, e.g. src/core.ts:42 or src/core.ts#build',
+    slicePlaceholder: 'Address or dir, e.g. src/core.ts:42 or src/renderer/',
     sliceRun: 'Expand',
     sliceHint: 'Pull just this slice instead of a whole context pack',
     sliceEmpty: 'Enter an address, then Expand',
