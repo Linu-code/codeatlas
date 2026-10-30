@@ -42,7 +42,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/api": "^2.12.4",
     "i18next": "^26.4.2",
     "jszip": "^3.10.1",
     "markdown-it": "^15.0.2",
