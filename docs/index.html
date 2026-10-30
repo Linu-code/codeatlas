@@ -331,7 +331,7 @@
       <span class="tag amber">支持完全断网环境</span>
     </div>
     <div class="cta">
-      <a class="btn primary" href="https://github.com/Linu-code/codeatlas/releases">下载 v3.0（Windows）</a>
+      <a class="btn primary" href="https://github.com/Linu-code/codeatlas/releases">下载 v5.0（Windows）</a>
       <a class="btn" href="https://github.com/Linu-code/codeatlas">查看源码</a>
     </div>
   </div>
@@ -350,13 +350,28 @@
   <div class="wrap">
     <div class="sec-head" data-reveal>
       <div class="sec-no">01 — CAPABILITIES</div>
-      <h2>十一块面板，覆盖「读懂一个仓库」的每一步</h2>
+      <h2>从看懂到提问，覆盖「读懂一个仓库」的每一步</h2>
       <p class="sec-sub">
         没有 AI 也能独立工作：AST 解析 + 启发式规则 + 图算法，全部在本地跑完。
       </p>
     </div>
 
     <div class="grid">
+      <div class="card" data-reveal>
+        <span class="ico">🗺️</span>
+        <h3>分级寻址</h3>
+        <p>索引不再抽样：<code>目录/</code> 给目录摘要，<code>index:文件</code> 给该文件全部符号，<code>路径:行号</code> 给代码。<b>任意符号都可达</b>，不再受"包里有没有它"限制。</p>
+      </div>
+      <div class="card" data-reveal>
+        <span class="ico">🧾</span>
+        <h3>上下文账本</h3>
+        <p>实时显示「会话多少 token · 展开几处 · 相比整份读入省多少倍」。片段超预算会自动淘汰最不值钱的，并如实告诉模型"这些内容已移出窗口"。</p>
+      </div>
+      <div class="card" data-reveal>
+        <span class="ico">⚡</span>
+        <h3>一句话直达</h3>
+        <p>输入任务点「直接回答」：自动挑包形态 → 生成 → 追问 → 自动展开。从四次点击变一次，模型拿到的上下文也更贴合问题。</p>
+      </div>
       <div class="card" data-reveal>
         <span class="ico">📁</span>
         <h3>文件树导航</h3>
@@ -557,7 +572,15 @@
     </div>
     <div class="timeline">
       <div class="tl-item" data-reveal>
-        <div class="v">v3.0 · 当前</div>
+        <div class="v">v5.0 · 当前</div>
+        <div class="d">上下文引擎：分级寻址（<code>目录/</code> → <code>index:文件</code> → <code>路径:行号</code>）、会话预算调度、上下文账本（省了多少一目了然）、一句话直达。</div>
+      </div>
+      <div class="tl-item" data-reveal>
+        <div class="v">v4.0 – v4.4</div>
+        <div class="d">token 估算按字符加权、按用途裁剪上下文包、任务焦点检索、符号索引与按需展开、AI 自己索取代码（<code>@@expand</code>）。</div>
+      </div>
+      <div class="tl-item" data-reveal>
+        <div class="v">v3.0</div>
         <div class="d">AI 解读（本地 Ollama / OpenAI 兼容双通道）；10 语言区域格式、可预览扩展名、依赖解析的多处缺陷收口。</div>
       </div>
       <div class="tl-item" data-reveal>
