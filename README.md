@@ -158,7 +158,7 @@ src-tauri/target/release/bundle/nsis/*-setup.exe              # Cargo 原始输�
 | 图表 | Mermaid（动态加载） | 调用图渲染 + SVG/PNG 导出 |
 | 本地缓存 | IndexedDB（手写薄封装） | 二次打开秒开；断网回退旧缓存；**分析结果增量复用（N4）** |
 | 并发 | Web Worker（AST 解析 / 全局搜索） | 主线程只做 I/O 与渲染；解析按 200 文件分块、25 文件分批投递，可回退主线程 |
-| 测试 | Vitest（432 个单测）+ Playwright（43 个 E2E 用例，在线场景用本地 mock 驱动，无需真实联网） | 分析层纯函数全覆盖 |
+| 测试 | Vitest（444 个单测）+ Playwright（43 个 E2E 用例，在线场景用本地 mock 驱动，无需真实联网） | 分析层纯函数全覆盖 |
 
 > **版本锁定说明**：`web-tree-sitter` 必须与语法包 ABI 匹配。项目锁定 `web-tree-sitter@0.25.10` + `tree-sitter-wasms@0.1.13`（0.1.13 由 tree-sitter-cli 0.20.8 构建，ABI 13；0.25.x 是兼容下限）。**0.26+** 运行时改用新版 dylink 段，加载旧 ABI 语法包会报 `getDylinkMetadata` 失败（issue tree-sitter#5171），故切勿升到 0.26+（已通过 Dependabot 忽略）。
 >
@@ -234,7 +234,7 @@ Atlas Blue 色板：主色 `#4A6CF7`、强调色 `#7C9EFF`、深色底 `#1B1D23`
 ```bash
 npm install          # 安装依赖（会自动把 tree-sitter wasm 复制到 public/grammars）
 npm run dev          # 浏览器开发模式
-npm test             # 单元测试（432 个）
+npm test             # 单元测试（444 个）
 npm run e2e          # E2E（Playwright，34 个用例，含截图生成；在线场景用本地 mock 驱动）
 npm run build        # 生产构建
 npm run build:exe    # 打包 exe（自动注入 MSVC 环境，产物复制到仓库根目录）
