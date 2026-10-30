@@ -23,6 +23,8 @@ export interface SliceTarget {
   endLine: number;
   /** 展示用标签：符号名或行段 */
   label: string;
+  /** 单行地址命中了某个符号，已按符号边界扩展（调用方可据此提示"完整函数"） */
+  snapped?: boolean;
 }
 
 export interface SliceCandidate {
@@ -111,6 +113,31 @@ export function resolveAddress(rawAddress: string, ctx: ResolveContext): Address
     const start = Number(lineRange[2]);
     const end = lineRange[3] ? Number(lineRange[3]) : start;
     if (start <= 0) return { kind: 'invalid', reason: 'not-found' };
+
+    // 单行地址：如果这一行落在某个符号内部，**按符号边界扩展**。
+    // 这是索引 → 展开链路上最关键的一环：索引里给的就是 `路径:行号`，
+    // 若只回 ±6 行，模型拿到的是半截函数（60 行的函数只能看到头部），
+    // 要么再要一次（多一轮往返），要么基于半截代码下结论（更糟）。
+    // 显式行段（`a-b`）不扩展：用户已经划定了范围，替他做主是越界。
+    if (!lineRange[3]) {
+      const file = ctx.files.find((f) => f.path === matched.path);
+      const enclosing = file?.definitions.filter((d) => d.line <= start && start <= d.endLine);
+      if (enclosing && enclosing.length > 0) {
+        // 嵌套时取最内层（跨度最小），否则会把整个模块都吐出来
+        const inner = enclosing.reduce((a, b) => (a.endLine - a.line <= b.endLine - b.line ? a : b));
+        return {
+          kind: 'ok',
+          target: {
+            path: matched.path,
+            startLine: inner.line,
+            endLine: Math.max(inner.line, inner.endLine),
+            label: inner.name,
+            snapped: true,
+          },
+        };
+      }
+    }
+
     return {
       kind: 'ok',
       target: {

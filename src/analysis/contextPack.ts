@@ -41,7 +41,9 @@ import type { FileEdge } from './importResolver';
  *   focus    —— 任务焦点：按关键词检索出的相关文件子图（只讲相关的那一块）
  *   index    —— 符号索引：只有「有什么 / 在哪」，实现细节按地址索取（配合「按需展开」）
  */
-export type PackIntent = 'overview' | 'health' | 'api' | 'focus' | 'index';
+/** 用途白名单的单一来源（下拉、持久化校验都由它派生，避免再抄一份） */
+export const PACK_INTENTS = ['overview', 'health', 'api', 'focus', 'index'] as const;
+export type PackIntent = (typeof PACK_INTENTS)[number];
 
 /** 循环依赖摘要（health 用途需要，由 ProjectView 从分析结果传入） */
 export interface CycleSummary {
@@ -393,6 +395,22 @@ function buildIndexLines(ranked: RankedSymbol[]): { text: string; file: string }
   return out;
 }
 
+/** 索引使用说明：示例地址取自包内第一条，保证"照着要"一定能拿到 */
+function buildIndexProtocol(lines: { text: string }[]): string {
+  const sample = /`([^`]+:\d+)`/.exec(lines[0]?.text ?? '')?.[1];
+  const example = sample
+    ? `，例如 \`${sample}\`（本包第一条）、\`${sample.replace(/:\d+$/, '')}#符号名\``
+    : '';
+  return [
+    '## 索引使用说明',
+    '',
+    '- 本包只有「有什么 / 在哪」：地址 + 类型 + 名称，**既无签名也无函数体**。',
+    `- 需要实现细节时，索取地址：\`路径:行号\` 或 \`路径起始-结束\`${example}。`,
+    '- CodeAtlas 的「按需展开」会把该片段连同行号导出，可直接贴回对话；单行地址会**自动扩展到整个函数**。',
+    '- 未列出的符号是被预算裁掉的，不代表不存在。',
+  ].join('\n');
+}
+
 function renderIndexSection(lines: { text: string }[], count: number): string {
   const head = '## 符号索引（`路径:行号` — 类型 — 名称）';
   if (count <= 0) return `${head}\n\n（预算不足，未包含任何符号）`;
@@ -559,21 +577,6 @@ function renderFocusEdges(result: FocusResult): string | null {
     }
   }
 
-  // 索引用途：把「怎么按地址取用」写成独立章节（不进 header）。
-  // 原因：它有一两百 token，预算紧张时必须是**可降级**的——
-  // 宁可先丢掉使用说明、保住索引条目，也不能因为它把整个包撑爆。
-  const indexProtocol =
-    intent === 'index'
-      ? [
-          '## 索引使用说明',
-          '',
-          '- 本包只有「有什么 / 在哪」：地址 + 类型 + 名称，**既无签名也无函数体**。',
-          '- 需要实现细节时，索取地址：`路径:行号` 或 `路径:起始-结束`，例如 `src/core.ts:42`、`src/core.ts:42-80`。',
-          '- CodeAtlas 的「按需展开」会把该片段连同行号导出，可直接贴回对话。',
-          '- 未列出的符号是被预算裁掉的，不代表不存在。',
-        ].join('\n')
-      : null;
-
   const header = headerParts.filter(Boolean).join('\n');
   const treeBlock = renderFileTree(input, fileScores, 80);
 
@@ -603,6 +606,15 @@ function renderFocusEdges(result: FocusResult): string | null {
 
   /** 索引用途：每行都是可寻址条目（路径:行号 + 签名），按文件重要性 + 行号排序 */
   const indexLines = intent === 'index' ? buildIndexLines(ranked) : null;
+
+  /**
+   * 索引用途：把「怎么按地址取用」写成独立章节（不进 header）。
+   * 它有一两百 token，预算紧张时必须是**可降级**的——宁可先丢说明、保住条目。
+   *
+   * 示例地址必须取自**包内真实条目**：写死 `src/core.ts:42` 时，实测三个真实仓库
+   * 各有 1 次解析失败——模型照着示例要了个不存在的地址。
+   */
+  const indexProtocol = intent === 'index' ? buildIndexProtocol(indexLines ?? []) : null;
 
   /** api 用途只关心对外契约，内部符号不进包 */
   const symbolPool: RankedSymbol[] =

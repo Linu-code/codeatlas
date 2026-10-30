@@ -36,8 +36,25 @@ import { githubLinkBase, githubRawBase } from '../utils/markdown';
 import { flattenFiles } from '../sources/tree';
 import { formatSize } from '../utils/format';
 import { annotateDirectories } from '../analysis/directories';
-import { generateContextPack, type ContextPack, type PackIntent } from '../analysis/contextPack';
+import {
+  generateContextPack,
+  PACK_INTENTS,
+  type ContextPack,
+  type PackIntent,
+} from '../analysis/contextPack';
 import { formatSlice, resolveAddress, type SliceOutcome } from '../analysis/slice';
+
+const PACK_INTENT_KEY = 'codeatlas.packIntent';
+
+/** 读上次使用的用途；白名单来自 PACK_INTENTS，新增用途不会漏校验 */
+function readSavedIntent(): PackIntent {
+  try {
+    const saved = localStorage.getItem(PACK_INTENT_KEY);
+    return PACK_INTENTS.includes(saved as PackIntent) ? (saved as PackIntent) : 'overview';
+  } catch {
+    return 'overview';
+  }
+}
 import { findSymbol, gotoDefinition, indexStats } from '../analysis/scopeGraph';
 import type { AppConfig, Language, ThemeId } from '../types/config';
 import { workspace, type ProjectEntry } from '../workspace/workspace';
@@ -85,6 +102,17 @@ export default function ProjectView({
   const [packOpen, setPackOpen] = useState(false);
   const [pack, setPack] = useState<ContextPack | null>(null);
   const [packGenerating, setPackGenerating] = useState(false);
+  // 用途由本视图持有：既保证与"已生成的包"一致（原来对话框自己存一份，
+  // 重开后下拉显示 overview、内容却是索引包），也让选择能跨会话记住。
+  const [packIntent, setPackIntent] = useState<PackIntent>(readSavedIntent);
+  const changePackIntent = useCallback((next: PackIntent) => {
+    setPackIntent(next);
+    try {
+      localStorage.setItem(PACK_INTENT_KEY, next);
+    } catch {
+      // 隐私模式下写不进去，不影响使用
+    }
+  }, []);
   /** 当前上下文包是按哪个 token 预算生成的（用于预算变更时判断是否失效） */
   const lastPackBudgetRef = useRef<number | null>(null);
   /** 命令面板（N2）：Ctrl+K 全量入口，Ctrl+T 只搜符号 */
@@ -266,6 +294,8 @@ export default function ProjectView({
   const generatePack = useCallback(
     async (budgetOverride?: number, intentOverride?: PackIntent, focusOverride?: string) => {
       if (!fs) return;
+      const usedIntent = intentOverride ?? packIntent;
+      if (usedIntent !== packIntent) changePackIntent(usedIntent);
       setPackGenerating(true);
       try {
         const bundle = await analysis.analyze(fs, repo.tree);
@@ -284,7 +314,7 @@ export default function ProjectView({
         const result = generateContextPack({
           repoName: fs.meta.name,
           branch: fs.meta.branch,
-          intent: intentOverride,
+          intent: usedIntent,
           focusQuery: focusOverride,
           fileEdges: bundle.moduleGraph?.fileEdges,
           cycles: bundle.cycles ?? undefined,
@@ -309,7 +339,7 @@ export default function ProjectView({
         setPackGenerating(false);
       }
     },
-    [analysis, config.maxTokens, dirPurposeLabels, dirPurposes, fs, repo.tree],
+    [analysis, changePackIntent, config.maxTokens, dirPurposeLabels, dirPurposes, fs, packIntent, repo.tree],
   );
 
   /**
@@ -778,6 +808,8 @@ export default function ProjectView({
         onGenerate={(budget, intent, focusQuery) => void generatePack(budget, intent, focusQuery)}
         onBudgetChange={(maxTokens) => onConfigChange({ maxTokens })}
         onSlice={sliceFromAddress}
+        intent={packIntent}
+        onIntentChange={changePackIntent}
         onClose={() => setPackOpen(false)}
       />
 

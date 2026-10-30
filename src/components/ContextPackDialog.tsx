@@ -31,6 +31,9 @@ interface Props {
   onBudgetChange?: (budget: number) => void;
   /** 按需展开：把 `路径:行号` 解析成带行号的代码片段 */
   onSlice: (address: string) => Promise<SliceOutcome>;
+  /** 当前用途（受控）：由 ProjectView 持有，保证与已生成的包一致，并能持久化 */
+  intent: PackIntent;
+  onIntentChange: (intent: PackIntent) => void;
   onClose: () => void;
 }
 
@@ -53,6 +56,8 @@ export default function ContextPackDialog({
   onGenerate,
   onBudgetChange,
   onSlice,
+  intent,
+  onIntentChange,
   onClose,
 }: Props) {
   const { t } = useTranslation(['analysis', 'common']);
@@ -60,7 +65,6 @@ export default function ContextPackDialog({
   useFocusTrap(dialogRef, open, onClose);
   const [tab, setTab] = useState<'md' | 'json' | 'ai' | 'slice'>('md');
   const [copied, setCopied] = useState(false);
-  const [intent, setIntent] = useState<PackIntent>('overview');
   const [focusQuery, setFocusQuery] = useState('');
   // ---------- 按需展开 ----------
   const [sliceAddr, setSliceAddr] = useState('');
@@ -214,7 +218,7 @@ export default function ContextPackDialog({
             value={intent}
             onChange={(e) => {
               const next = e.target.value as PackIntent;
-              setIntent(next);
+              onIntentChange(next);
               onGenerate(undefined, next, focusQuery);
             }}
             disabled={generating}

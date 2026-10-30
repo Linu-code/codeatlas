@@ -220,6 +220,33 @@ test('符号索引 + 按需展开：只给地址，实现按需取', async ({ pa
   await dialog.locator('[data-slice-address]').fill('src/nope.ts:1');
   await dialog.locator('[data-slice-run]').click();
   await expect(dialog).toContainText('找不到该文件或符号', { timeout: 20_000 });
+
+  // 关掉再打开：用途不回到 overview，与已生成的包保持一致（少点一次下拉）
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+  await expect(dialog.locator('[data-pack-intent]')).toHaveValue('index');
+  await dialog.getByRole('button', { name: 'Markdown', exact: true }).click();
+  await expect(dialog).toContainText('## 符号索引', { timeout: 40_000 });
+});
+
+test('单行地址落在函数内部时，展开到整个函数（而不是 ±6 行）', async ({ page }) => {
+  await loadFixtureZip(page, zipPath);
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+
+  await dialog.getByRole('button', { name: '按需展开' }).click();
+  // 第 5 行在 compute() 内部（函数是 4-14 行），修复前只回 5-11 行，拿不到 return
+  await dialog.locator('[data-slice-address]').fill('src/core.ts:5');
+  await dialog.locator('[data-slice-run]').click();
+
+  const out = dialog.locator('[data-slice-output]');
+  // 表头带符号名 → 说明已按符号边界扩展
+  await expect(out).toContainText('— compute', { timeout: 20_000 });
+  // 函数末尾的 return 必须在（±6 行窗口拿不到）
+  await expect(out).toContainText('return total;');
 });
 
 test('AI 解读：默认关闭时给出设置引导，且不发任何请求', async ({ page }) => {

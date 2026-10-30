@@ -3,6 +3,7 @@ import { buildDependencyEdges, normalizePosix, pageRank } from '../../src/analys
 import { estimateTokens, fitsBudget } from '../../src/utils/tokenEstimator';
 import { generateContextPack, rankSymbols } from '../../src/analysis/contextPack';
 import { buildScopeIndex } from '../../src/analysis/scopeGraph';
+import { resolveAddress } from '../../src/analysis/slice';
 import type { FileAnalysis, SymbolDef } from '../../src/analysis/symbols';
 
 // ---------- tokenEstimator ----------
@@ -241,6 +242,19 @@ describe('上下文包用途', () => {
     expect(small.tokens).toBeLessThanOrEqual(800);
     expect(big.tokens).toBeLessThanOrEqual(8000);
     expect(small.markdown).toContain('## 符号索引');
+  });
+
+  it('index：使用说明里的示例地址取自包内真实条目', () => {
+    const pack = generateContextPack({ ...base, intent: 'index' });
+    // 曾经写死 `src/core.ts:42`——真实仓库里不存在，模型照着要就会失败
+    expect(pack.markdown).not.toContain('src/core.ts:42');
+    expect(pack.markdown).toContain('本包第一条');
+
+    const sample = /例如 `([^`:]+:\d+)`/.exec(pack.markdown)?.[1];
+    expect(sample).toBeTruthy();
+    const resolved = resolveAddress(sample!, { files: FILES, paths: FILES.map((f) => f.path) });
+    expect(resolved.kind).toBe('ok');
+    if (resolved.kind === 'ok') expect(resolved.target.snapped).toBe(true);
   });
 
   it('index：条目按文件重要性聚集，文件内按行号升序', () => {

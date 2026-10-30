@@ -31,6 +31,56 @@ const ctx: ResolveContext = {
 };
 
 describe('resolveAddress', () => {
+  it('单行地址落在符号内时，按符号边界扩展（否则模型只拿到半截函数）', () => {
+    const r = resolveAddress('src/core.ts:12', ctx);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.target).toMatchObject({ startLine: 5, endLine: 20, label: 'compute', snapped: true });
+    }
+  });
+
+  it('定义所在的那一行同样会扩展到整个符号', () => {
+    const r = resolveAddress('src/core.ts:5', ctx);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') expect(r.target.snapped).toBe(true);
+  });
+
+  it('嵌套时取最内层（否则会把整个外层函数都吐出来）', () => {
+    const nested: ResolveContext = {
+      files: [
+        {
+          ...file('src/nest.ts', [['outer', 1, 100]]),
+          definitions: [
+            { name: 'outer', kind: 'function' as const, line: 1, endLine: 100, signature: 'function outer()', exported: true },
+            { name: 'inner', kind: 'function' as const, line: 10, endLine: 20, signature: 'function inner()', exported: false },
+          ],
+        },
+      ],
+      paths: ['src/nest.ts'],
+    };
+    const r = resolveAddress('src/nest.ts:15', nested);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') expect(r.target).toMatchObject({ startLine: 10, endLine: 20, label: 'inner' });
+  });
+
+  it('显式行段不扩展：用户已经划定范围，不替他做主', () => {
+    const r = resolveAddress('src/core.ts:10-12', ctx);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.target).toMatchObject({ startLine: 10, endLine: 12 });
+      expect(r.target.snapped).toBeUndefined();
+    }
+  });
+
+  it('不在任何符号内的行号保持原样（交给上下文窗口）', () => {
+    const r = resolveAddress('src/core.ts:25', ctx);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.target).toMatchObject({ startLine: 25, endLine: 25 });
+      expect(r.target.snapped).toBeUndefined();
+    }
+  });
+
   it('解析 路径:行号 与 行段', () => {
     const one = resolveAddress('src/core.ts:42', ctx);
     expect(one).toEqual({ kind: 'ok', target: { path: 'src/core.ts', startLine: 42, endLine: 42, label: 'src/core.ts:42' } });
