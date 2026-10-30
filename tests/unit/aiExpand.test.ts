@@ -128,6 +128,66 @@ describe('runExpandingChat', () => {
     expect(r.text).toContain('继续');
   });
 
+  it('片段超出会话预算时淘汰旧片段，并把「已移出窗口」写进历史', async () => {
+    const { chat, calls } = scriptedChat([
+      '第一轮\n@@expand a.ts:1',
+      '第二轮\n@@expand b.ts:1',
+      '第三轮\n@@expand c.ts:1',
+      '收尾，不再索取',
+    ]);
+
+    const r = await runExpandingChat({
+      messages: [{ role: 'user', content: 'go' }],
+      chat,
+      resolve: async () => okSlice(),
+      maxRounds: 3,
+      sliceBudget: 100, // 每个切片 42 token：两条 84 装得下，三条 126 超限 → 淘汰最早一条
+      packTokens: 500,
+      onDelta: () => {},
+    });
+
+    // 第 4 次请求（索引 3）里，最早的片段已被替换为提示行
+    const last = calls[3].map((m) => m.content).join('\n');
+    expect(last).toContain('moved out of the context window');
+    expect(last).toContain('a.ts:1');
+    // 账本：3 次展开都记着，但窗口内只留得下部分
+    expect(r.ledger.slices).toBe(3);
+    expect(r.ledger.dropped).toBeGreaterThan(0);
+    expect(r.ledger.tokens).toBeLessThanOrEqual(500 + 100);
+  });
+
+  it('预算充足时不做任何淘汰', async () => {
+    const { chat, calls } = scriptedChat(['x\n@@expand a.ts:1', 'y\n@@expand b.ts:1', 'done']);
+    const r = await runExpandingChat({
+      messages: [{ role: 'user', content: 'go' }],
+      chat,
+      resolve: async () => okSlice(),
+      maxRounds: 3,
+      sliceBudget: 10_000,
+      packTokens: 100,
+      onDelta: () => {},
+    });
+    const last = calls[calls.length - 1].map((m) => m.content).join('\n');
+    expect(last).not.toContain('moved out of the context window');
+    expect(r.ledger.dropped).toBe(0);
+    expect(r.ledger.slices).toBe(2);
+  });
+
+  it('账本给出相对「整份读入」的节省倍数', async () => {
+    const { chat } = scriptedChat(['x\n@@expand a.ts:1', 'done']);
+    const r = await runExpandingChat({
+      messages: [{ role: 'user', content: 'go' }],
+      chat,
+      resolve: async () => ({ kind: 'ok', text: '  1 | x', tokens: 50, truncated: false, fileTokens: 5000 }),
+      maxRounds: 3,
+      packTokens: 950,
+      onDelta: () => {},
+    });
+    expect(r.ledger.naiveTokens).toBe(5000);
+    expect(r.ledger.tokens).toBe(1000);
+    expect(r.ledger.ratio).toBe(5);
+  });
+
   it('maxRounds 封顶（最多 3 次展开）', async () => {
     const script = Array.from({ length: 6 }, (_, i) => `@@expand src/f${i}.ts:1\n`);
     const { chat, calls } = scriptedChat(script);

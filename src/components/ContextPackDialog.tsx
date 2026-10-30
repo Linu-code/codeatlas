@@ -15,6 +15,7 @@ import type { SliceOutcome } from '../analysis/slice';
 import type { AiConfig } from '../types/config';
 import { AiError, buildExplainPrompt, streamChatMessages } from '../utils/aiClient';
 import { runExpandingChat, type ExpandRound } from '../utils/aiExpand';
+import type { SessionLedger } from '../analysis/session';
 import { loadAiKey } from '../utils/configStore';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
@@ -31,6 +32,8 @@ interface Props {
   onBudgetChange?: (budget: number) => void;
   /** 按需展开：把 `路径:行号` 解析成带行号的代码片段 */
   onSlice: (address: string) => Promise<SliceOutcome>;
+  /** 按指定用途/关键词生成包并返回（「直接回答」要先拿到新包再问） */
+  onBuildPack: (intent: PackIntent, query: string) => Promise<ContextPack | null>;
   /** 当前用途（受控）：由 ProjectView 持有，保证与已生成的包一致，并能持久化 */
   intent: PackIntent;
   onIntentChange: (intent: PackIntent) => void;
@@ -56,6 +59,7 @@ export default function ContextPackDialog({
   onGenerate,
   onBudgetChange,
   onSlice,
+  onBuildPack,
   intent,
   onIntentChange,
   onClose,
@@ -87,6 +91,7 @@ export default function ContextPackDialog({
   const [aiRunning, setAiRunning] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiRounds, setAiRounds] = useState<ExpandRound[]>([]);
+  const [aiLedger, setAiLedger] = useState<SessionLedger | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const stopAi = useCallback(() => {
@@ -95,8 +100,9 @@ export default function ContextPackDialog({
     setAiRunning(false);
   }, []);
 
-  const runAi = useCallback(async () => {
-    if (!pack) return;
+  const runAi = useCallback(async (packOverride?: ContextPack | null) => {
+    const target = packOverride ?? pack;
+    if (!target) return;
     setTab('ai');
     setAiError(null);
 
@@ -108,6 +114,7 @@ export default function ContextPackDialog({
     stopAi();
     setAiText('');
     setAiRounds([]);
+    setAiLedger(null);
     setAiRunning(true);
     const controller = new AbortController();
     abortRef.current = controller;
@@ -116,7 +123,7 @@ export default function ContextPackDialog({
       // 索引包里没有实现细节，模型会输出 `@@expand 路径:行号` 索取；
       // 这里捕获、切片、回灌，用户只看到干净正文 + 「已展开 N 处」。
       await runExpandingChat({
-        messages: [{ role: 'user', content: buildExplainPrompt(pack.markdown, { expand: true }) }],
+        messages: [{ role: 'user', content: buildExplainPrompt(target.markdown, { expand: true }) }],
         chat: (messages, handlers) =>
           streamChatMessages(ai, loadAiKey(), messages, {
             signal: handlers.signal,
@@ -124,6 +131,11 @@ export default function ContextPackDialog({
           }),
         resolve: onSlice,
         maxRounds: 3,
+        packTokens: target.tokens,
+        // 片段预算 = 包的 2 倍：包是索引、片段是细节，细节总量不该无限膨胀。
+        // 超了就淘汰最不值钱的片段，并在下一轮告诉模型"那些内容已移出窗口"。
+        sliceBudget: Math.max(1200, Math.round(target.tokens * 2)),
+        onLedger: setAiLedger,
         signal: controller.signal,
         onDelta: (delta) => setAiText((prev) => prev + delta),
         onRound: (round) => setAiRounds((prev) => [...prev, round]),
@@ -137,6 +149,30 @@ export default function ContextPackDialog({
       setAiRunning(false);
     }
   }, [pack, ai, t, stopAi, onSlice]);
+
+  /**
+   * 「直接回答」：一句话直达答案。
+   *
+   * 原来要四步（选用途 → 生成 → 点 AI → 等）才看到答案；这里按输入自动定用途：
+   * 有任务描述 → 任务焦点包（只给相关文件）；没输入 → 符号索引（全貌）。
+   * 用户少点三次，模型拿到的包也更贴合问题。
+   */
+  const runTask = useCallback(async () => {
+    setTab('ai');
+    setAiError(null);
+    if (ai.provider === 'off') {
+      setAiError(t('analysis:aiNotConfigured'));
+      return;
+    }
+    const query = focusQuery.trim();
+    const autoIntent: PackIntent = query ? 'focus' : 'index';
+    const built = await onBuildPack(autoIntent, query);
+    if (!built) {
+      setAiError(t('analysis:aiFailed', { message: 'pack-build-failed' }));
+      return;
+    }
+    await runAi(built);
+  }, [ai.provider, focusQuery, onBuildPack, runAi, t]);
 
   // 关闭对话框 / 组件卸载：中断在途请求（避免响应回来时对已卸载组件 setState）
   useEffect(() => {
@@ -285,8 +321,7 @@ export default function ContextPackDialog({
           </div>
         </header>
 
-        {intent === 'focus' && (
-          <div className="mb-2 flex items-center gap-2">
+        <div className="mb-2 flex items-center gap-2">
             <input
               data-pack-focus
               value={focusQuery}
@@ -306,17 +341,24 @@ export default function ContextPackDialog({
             <button
               data-pack-focus-run
               onClick={() => onGenerate(undefined, 'focus', focusQuery)}
-              disabled={generating}
-              className="shrink-0 rounded px-3 py-1 text-white disabled:opacity-50"
-              style={{ background: 'var(--c-primary)' }}
+              disabled={generating || intent !== 'focus'}
+              title={intent === 'focus' ? undefined : t('analysis:packIntentHint')}
+              className="shrink-0 rounded border px-3 py-1 disabled:opacity-40"
+              style={{ borderColor: 'var(--c-border)', color: 'var(--c-text)' }}
             >
               {t('analysis:focusQueryRun')}
             </button>
-            <span className="shrink-0" style={{ color: 'var(--c-text-2)' }}>
-              {t('analysis:focusQueryHint')}
-            </span>
-          </div>
-        )}
+            <button
+              data-ai-ask
+              onClick={() => void runTask()}
+              disabled={aiRunning}
+              className="shrink-0 rounded px-3 py-1 text-white disabled:opacity-50"
+              style={{ background: 'var(--c-primary)' }}
+              title={t('analysis:aiAskHint')}
+            >
+              {t('analysis:aiAsk')}
+            </button>
+        </div>
 
         <div
           className="mb-3 min-h-[200px] flex-1 overflow-auto rounded border p-3"
@@ -413,6 +455,23 @@ export default function ContextPackDialog({
                     count: aiRounds.length,
                     tokens: aiRounds.reduce((n, r) => n + r.tokens, 0),
                   })}
+                </p>
+              )}
+              {aiLedger && (
+                <p
+                  data-ai-ledger
+                  className="m-0 mb-1"
+                  style={{ color: 'var(--c-text-2)' }}
+                  title={aiRounds.map((r) => `${r.address}${r.ok ? '' : ' (×)'}`).join('\n')}
+                >
+                  {t('analysis:aiLedger', {
+                    tokens: aiLedger.tokens,
+                    count: aiLedger.slices,
+                    ratio: aiLedger.ratio,
+                  })}
+                  {aiLedger.dropped > 0
+                    ? ` · ${t('analysis:aiLedgerDropped', { count: aiLedger.dropped })}`
+                    : ''}
                 </p>
               )}
               {aiRunning && !aiText && (

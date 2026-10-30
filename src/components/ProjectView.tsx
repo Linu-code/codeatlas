@@ -295,13 +295,13 @@ export default function ProjectView({
   // ---------- AI 上下文包 ----------
   const generatePack = useCallback(
     async (budgetOverride?: number, intentOverride?: PackIntent, focusOverride?: string) => {
-      if (!fs) return;
+      if (!fs) return null;
       const usedIntent = intentOverride ?? packIntent;
       if (usedIntent !== packIntent) changePackIntent(usedIntent);
       setPackGenerating(true);
       try {
         const bundle = await analysis.analyze(fs, repo.tree);
-        if (!bundle.index) return;
+        if (!bundle.index) return null;
         const treePaths = flattenFiles(repo.tree);
         const usedBudget = budgetOverride ?? config.maxTokens;
         // package.json：把「怎么跑 / 用什么」带进上下文包（读失败不影响生成）
@@ -337,6 +337,7 @@ export default function ProjectView({
         });
         lastPackBudgetRef.current = usedBudget;
         setPack(result);
+        return result;
       } finally {
         setPackGenerating(false);
       }
@@ -381,7 +382,14 @@ export default function ProjectView({
       // 整文件请求仍按 800——那是"我想大概看看"，不是"我要这个函数"。
       const precise = resolved.target.label !== resolved.target.path;
       const slice = formatSlice(source, resolved.target, { maxTokens: precise ? 1500 : 800 });
-      return { kind: 'ok', text: slice.text, tokens: slice.tokens, truncated: slice.truncated };
+      return {
+        kind: 'ok',
+        text: slice.text,
+        tokens: slice.tokens,
+        truncated: slice.truncated,
+        // 账本要回答"不切片的话要读多少"——整份文件的估算就是那个数
+        fileTokens: estimateTokens(source),
+      };
     },
     [analysis, fs, repo.tree],
   );
@@ -821,6 +829,7 @@ export default function ProjectView({
         onGenerate={(budget, intent, focusQuery) => void generatePack(budget, intent, focusQuery)}
         onBudgetChange={(maxTokens) => onConfigChange({ maxTokens })}
         onSlice={sliceFromAddress}
+        onBuildPack={async (i, q) => (await generatePack(undefined, i, q)) ?? null}
         intent={packIntent}
         onIntentChange={changePackIntent}
         onClose={() => setPackOpen(false)}

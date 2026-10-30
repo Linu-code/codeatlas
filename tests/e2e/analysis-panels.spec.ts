@@ -301,6 +301,53 @@ test('AI 解读：默认关闭时给出设置引导，且不发任何请求', as
   expect(external).toHaveLength(0);
 });
 
+test('直接回答：一句话直达答案，并显示上下文账本', async ({ page }) => {
+  const calls: string[] = [];
+  await page.route('**/chat/completions', async (route) => {
+    calls.push(route.request().postData() ?? '');
+    const text =
+      calls.length === 1
+        ? '先看实现。\n@@expand src/core.ts:5\n'
+        : '结论：计算逻辑在 src/core.ts 的 compute()。\n';
+    const body = `data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\ndata: [DONE]\n\n`;
+    await route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body });
+  });
+
+  await page.goto('/');
+  await openSettings(page);
+  await page.getByRole('button', { name: /AI 助手|AI Assistant/ }).click();
+  await page.locator('[data-ai-provider]').selectOption('openai');
+  await page.locator('[data-ai-base-url]').fill('http://127.0.0.1:18123/v1');
+  await page.locator('[data-ai-model]').fill('fake-model');
+  await closeSettings(page);
+
+  await loadFixtureZip(page, zipPath);
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+
+  // 一句话：自动选任务焦点包 → 生成 → 直接提问（不再手点四次）
+  await dialog.locator('[data-pack-focus]').fill('compute');
+  await dialog.locator('[data-ai-ask]').click();
+
+  await expect(dialog).toContainText('结论：计算逻辑在 src/core.ts', { timeout: 40_000 });
+  await expect(dialog).not.toContainText('@@expand');
+
+  // 账本：占用 token + 相对整份读入的节省倍数
+  const ledger = dialog.locator('[data-ai-ledger]');
+  await expect(ledger).toBeVisible();
+  await expect(ledger).toContainText('会话');
+  await expect(ledger).toContainText('×');
+
+  // 自动选对了包形态
+  await dialog.getByRole('button', { name: 'Markdown', exact: true }).click();
+  await expect(dialog).toContainText('## 任务焦点');
+
+  expect(calls).toHaveLength(2);
+  expect(calls[1]).toContain('const x');
+});
+
 test('设置页含 AI 助手分区，可切换提供方并回填默认地址', async ({ page }) => {
   await page.goto('/');
   await openSettings(page);

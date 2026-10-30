@@ -14,6 +14,12 @@
 
 import type { ChatMessage } from './aiClient';
 import type { SliceOutcome } from '../analysis/slice';
+import {
+  computeLedger,
+  planEviction,
+  type SessionLedger,
+  type SessionSlice,
+} from '../analysis/session';
 
 /** 标记行的正则：允许前后空白与 Markdown 反引号 */
 const MARKER_RE = /^\s*`{0,3}@@expand\s+([^\s`]+)`{0,3}\s*$/;
@@ -78,6 +84,8 @@ export interface ExpandingChatResult {
   /** 用户可见的正文（已剔除标记行） */
   text: string;
   rounds: ExpandRound[];
+  /** 本次会话的上下文账本（占用 / 相对整文件节省倍数） */
+  ledger: SessionLedger;
 }
 
 export interface ExpandingChatOptions {
@@ -90,6 +98,15 @@ export interface ExpandingChatOptions {
   resolve: (address: string) => Promise<SliceOutcome>;
   /** 最多展开几次（默认 3） */
   maxRounds?: number;
+  /** 包本身的 token（账本的分母之一） */
+  packTokens?: number;
+  /**
+   * 会话片段预算（token）。超出后按「引用次数 → 新旧」淘汰，
+   * 并把"已移出窗口"如实告知模型。<=0 表示不限制。
+   */
+  sliceBudget?: number;
+  /** 每轮淘汰后回调账本（UI 实时显示） */
+  onLedger?: (ledger: SessionLedger) => void;
   onDelta: (text: string) => void;
   onRound?: (round: ExpandRound) => void;
   signal?: AbortSignal;
@@ -109,18 +126,51 @@ function sliceMessage(address: string, slice: SliceOutcome): string {
   ].join('\n');
 }
 
+/** 会话里已经发生的一步：模型的回答，或回灌的切片 */
+interface Turn {
+  kind: 'answer' | 'slice';
+  content: string;
+  slice?: SessionSlice;
+  /** 已因预算移出窗口：内容替换为一句提示，避免模型以为自己还记得 */
+  evicted?: boolean;
+}
+
+function renderTurn(turn: Turn): ChatMessage {
+  if (turn.kind === 'slice' && turn.slice && turn.evicted) {
+    return {
+      role: 'user',
+      content: `Slice ${turn.slice.address} was moved out of the context window to stay within budget. Request it again if you still need it.`,
+    };
+  }
+  return { role: turn.kind === 'answer' ? 'assistant' : 'user', content: turn.content };
+}
+
 /**
  * 跑完「回答 → 索取 → 切片 → 继续」的循环，返回拼接后的正文。
  * 模型没给标记时只调用一次，行为与单轮完全一致。
+ *
+ * 每轮请求前都会按 `sliceBudget` 做一次淘汰：预算内不动，超了就丢最不值钱的片段，
+ * 并把"已移出窗口"写回历史——否则模型会基于它自以为还记得的内容继续推理。
  */
 export async function runExpandingChat(opts: ExpandingChatOptions): Promise<ExpandingChatResult> {
   const maxRounds = opts.maxRounds ?? 3;
-  const messages: ChatMessage[] = [...opts.messages];
+  const sliceBudget = opts.sliceBudget ?? 0;
+  const turns: Turn[] = [];
+  const slices: SessionSlice[] = [];
   const rounds: ExpandRound[] = [];
-  const requested = new Set<string>();
+  const requested = new Map<string, SessionSlice>();
   let text = '';
 
   for (let round = 0; ; round += 1) {
+    // 淘汰：同一批 slice 对象，靠引用相等标记到对应 turn 上
+    const plan = planEviction(slices, sliceBudget);
+    const dropped = new Set(plan.dropped);
+    for (const turn of turns) {
+      if (turn.slice && dropped.has(turn.slice)) turn.evicted = true;
+    }
+    opts.onLedger?.(computeLedger({ packTokens: opts.packTokens ?? 0, slices, plan }));
+
+    const messages: ChatMessage[] = [...opts.messages, ...turns.map(renderTurn)];
     const filter = new ExpandMarkerFilter();
     const raw = await opts.chat(messages, {
       signal: opts.signal,
@@ -137,11 +187,20 @@ export async function runExpandingChat(opts: ExpandingChatOptions): Promise<Expa
       opts.onDelta(tail);
     }
 
-    // 同一个地址只取一次：模型重复输出时不再浪费一次往返
-    const address = filter.markers.find((a) => !requested.has(a));
-    if (!address || round >= maxRounds) return { text, rounds };
+    // 重复索取视为"引用"：不重复取回内容，但会提高该片段的保留优先级
+    for (const marker of filter.markers) {
+      const hit = requested.get(marker);
+      if (hit) hit.hits += 1;
+    }
 
-    requested.add(address);
+    const address = filter.markers.find((a) => !requested.has(a));
+    if (!address || round >= maxRounds) {
+      const plan = planEviction(slices, sliceBudget);
+      const ledger = computeLedger({ packTokens: opts.packTokens ?? 0, slices, plan });
+      opts.onLedger?.(ledger);
+      return { text, rounds, ledger };
+    }
+
     let slice: SliceOutcome;
     try {
       slice = await opts.resolve(address);
@@ -151,11 +210,11 @@ export async function runExpandingChat(opts: ExpandingChatOptions): Promise<Expa
 
     const info: ExpandRound = {
       address,
-      ok: slice.kind === 'ok',
-      tokens: slice.kind === 'ok' ? slice.tokens : 0,
+      ok: slice.kind !== 'invalid' && slice.kind !== 'ambiguous',
+      tokens: slice.kind === 'invalid' || slice.kind === 'ambiguous' ? 0 : slice.tokens,
       // 失败原因要具体（not-found / read-failed / ambiguous），否则日志无法定位
       reason:
-        slice.kind === 'ok'
+        slice.kind === 'ok' || slice.kind === 'digest' || slice.kind === 'fileIndex'
           ? undefined
           : slice.kind === 'invalid'
             ? slice.reason
@@ -164,7 +223,21 @@ export async function runExpandingChat(opts: ExpandingChatOptions): Promise<Expa
     rounds.push(info);
     opts.onRound?.(info);
 
-    messages.push({ role: 'assistant', content: raw });
-    messages.push({ role: 'user', content: sliceMessage(address, slice) });
+    const entry: SessionSlice = {
+      address,
+      tokens: info.tokens,
+      fileTokens: slice.kind === 'ok' ? slice.fileTokens : undefined,
+      round,
+      hits: 0,
+    };
+    slices.push(entry);
+    requested.set(address, entry);
+
+    turns.push({ kind: 'answer', content: raw });
+    turns.push({
+      kind: 'slice',
+      content: sliceMessage(address, slice),
+      slice: entry,
+    });
   }
 }

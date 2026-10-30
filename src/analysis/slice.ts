@@ -260,7 +260,14 @@ export interface SliceResult {
  * 与 AddressResult 不同：这里已经读过文件，可能因为二进制 / 读失败而失败。
  */
 export type SliceOutcome =
-  | { kind: 'ok'; text: string; tokens: number; truncated: boolean }
+  | {
+      kind: 'ok';
+      text: string;
+      tokens: number;
+      truncated: boolean;
+      /** 整份文件的 token（账本用它算"如果不做切片，要读多少"） */
+      fileTokens?: number;
+    }
   /** 目录摘要（`dir/`）—— 不是代码，是下一级地址入口 */
   | { kind: 'digest'; text: string; tokens: number }
   /** 单文件符号清单（`index:path`） */
