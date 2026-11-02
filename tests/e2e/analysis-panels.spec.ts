@@ -348,6 +348,61 @@ test('直接回答：一句话直达答案，并显示上下文账本', async ({
   expect(calls[1]).toContain('const x');
 });
 
+test('本地 Ollama（NDJSON）：不联网也能跑通展开与账本', async ({ page }) => {
+  const calls: string[] = [];
+  // 假 Ollama：/api/chat 返回 NDJSON，字段与真机一致（message.content 增量 + done）
+  await page.route('**/api/chat', async (route) => {
+    calls.push(route.request().postData() ?? '');
+    const text =
+      calls.length === 1
+        ? '看实现。\n@@expand src/core.ts:5\n'
+        : '结论：compute() 在 src/core.ts。\n';
+    const body =
+      JSON.stringify({ message: { role: 'assistant', content: text }, done: false }) +
+      '\n' +
+      JSON.stringify({ message: { role: 'assistant', content: '' }, done: true }) +
+      '\n';
+    await route.fulfill({ status: 200, headers: { 'Content-Type': 'application/x-ndjson' }, body });
+  });
+
+  // 任何非本地请求都算违规：本地 AI 必须完全不碰外网
+  const external: string[] = [];
+  page.on('request', (req) => {
+    const { protocol, hostname } = new URL(req.url());
+    if (protocol.startsWith('http') && !hostname.startsWith('127.0.0.1') && hostname !== 'localhost') {
+      external.push(hostname);
+    }
+  });
+
+  await page.goto('/');
+  await openSettings(page);
+  await page.getByRole('button', { name: /AI 助手|AI Assistant/ }).click();
+  await page.locator('[data-ai-provider]').selectOption('ollama');
+  await page.locator('[data-ai-base-url]').fill('http://127.0.0.1:11434');
+  await page.locator('[data-ai-model]').fill('qwen2.5-coder:3b');
+  // 小档位：2 轮、切片 800、精简提示词
+  await page.locator('[data-ai-tier]').selectOption('small');
+  await closeSettings(page);
+
+  await loadFixtureZip(page, zipPath);
+  await clickToolbar(page, ['AI 上下文包', 'AI context pack', 'AI コンテキストパック']);
+  const dialog = page.locator('div[role="dialog"]');
+  await expect(dialog).toContainText('## 项目概览', { timeout: 40_000 });
+
+  await dialog.locator('[data-pack-focus]').fill('compute');
+  await dialog.locator('[data-ai-ask]').click();
+
+  await expect(dialog).toContainText('结论：compute() 在 src/core.ts', { timeout: 40_000 });
+  await expect(dialog).not.toContainText('@@expand');
+  await expect(dialog.locator('[data-ai-ledger]')).toContainText('会话');
+
+  // 小档位把指令压到 2 轮：请求体里能看出精简提示词
+  expect(calls).toHaveLength(2);
+  expect(calls[0]).toContain('under 400 words');
+  expect(calls[0]).toContain('at most 2 slices');
+  expect(external).toEqual([]);
+});
+
 test('设置页含 AI 助手分区，可切换提供方并回填默认地址', async ({ page }) => {
   await page.goto('/');
   await openSettings(page);

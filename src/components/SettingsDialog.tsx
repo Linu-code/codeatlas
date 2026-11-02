@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AI_DEFAULTS, type AiProvider, type AppConfig, type Language, type ThemeId } from '../types/config';
+import { AI_DEFAULTS, type AiProvider, type AiTier, type AppConfig, type Language, type ThemeId } from '../types/config';
 import { LANGUAGES, saveLanguage } from '../i18n';
 import { THEME_OPTIONS, applyTheme, saveTheme } from '../theme/themes';
 import { cacheStats, clearAllCache } from '../sources/cache';
@@ -265,6 +265,25 @@ export default function SettingsDialog({ open, onClose, config, onConfigChange }
                         style={fieldStyle}
                       />
                     </Row>
+
+                    <Row label={t('aiTier')}>
+                      <select
+                        data-ai-tier
+                        value={config.ai.tier ?? 'small'}
+                        onChange={(e) =>
+                          onConfigChange({ ai: { ...config.ai, tier: e.target.value as AiTier } })
+                        }
+                        className={selectClass}
+                        style={fieldStyle}
+                      >
+                        <option value="small">{t('aiTierSmall')}</option>
+                        <option value="medium">{t('aiTierMedium')}</option>
+                        <option value="large">{t('aiTierLarge')}</option>
+                      </select>
+                    </Row>
+                    <p className="text-[11px] leading-5" style={{ color: 'var(--c-text-2)' }}>
+                      {t('aiTierHint')}
+                    </p>
 
                     {config.ai.provider === 'openai' && (
                       <>

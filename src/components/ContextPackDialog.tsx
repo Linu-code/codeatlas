@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ContextPack, PackIntent } from '../analysis/contextPack';
 import type { SliceOutcome } from '../analysis/slice';
-import type { AiConfig } from '../types/config';
+import { tierLimits, type AiConfig } from '../types/config';
 import { AiError, buildExplainPrompt, streamChatMessages } from '../utils/aiClient';
 import { runExpandingChat, type ExpandRound } from '../utils/aiExpand';
 import type { SessionLedger } from '../analysis/session';
@@ -112,6 +112,7 @@ export default function ContextPackDialog({
     }
 
     stopAi();
+    const limits = tierLimits(ai);
     setAiText('');
     setAiRounds([]);
     setAiLedger(null);
@@ -123,18 +124,24 @@ export default function ContextPackDialog({
       // 索引包里没有实现细节，模型会输出 `@@expand 路径:行号` 索取；
       // 这里捕获、切片、回灌，用户只看到干净正文 + 「已展开 N 处」。
       await runExpandingChat({
-        messages: [{ role: 'user', content: buildExplainPrompt(target.markdown, { expand: true }) }],
+        messages: [
+          {
+            role: 'user',
+            content: buildExplainPrompt(target.markdown, { expand: true, brief: limits.brief }),
+          },
+        ],
         chat: (messages, handlers) =>
           streamChatMessages(ai, loadAiKey(), messages, {
             signal: handlers.signal,
             onDelta: handlers.onDelta,
           }),
         resolve: onSlice,
-        maxRounds: 3,
+        maxRounds: limits.maxRounds,
         packTokens: target.tokens,
-        // 片段预算 = 包的 2 倍：包是索引、片段是细节，细节总量不该无限膨胀。
-        // 超了就淘汰最不值钱的片段，并在下一轮告诉模型"那些内容已移出窗口"。
-        sliceBudget: Math.max(1200, Math.round(target.tokens * 2)),
+        // 片段预算：小/中档位用固定上限（本地小模型窗口只有 4k~8k），
+        // 大档位沿用「包的 2 倍」——包是索引、片段是细节，细节总量不该无限膨胀。
+        sliceBudget:
+          limits.sliceBudget > 0 ? limits.sliceBudget : Math.max(1200, Math.round(target.tokens * 2)),
         onLedger: setAiLedger,
         signal: controller.signal,
         onDelta: (delta) => setAiText((prev) => prev + delta),
@@ -359,6 +366,19 @@ export default function ContextPackDialog({
               {t('analysis:aiAsk')}
             </button>
         </div>
+
+        {pack && pack.tokens > tierLimits(ai).windowHint * 0.6 && (
+          <p
+            data-tier-warn
+            className="m-0 mb-2"
+            style={{ color: 'var(--c-warning)' }}
+          >
+            {t('analysis:tierBudgetWarn', {
+              tokens: pack.tokens,
+              limit: Math.round(tierLimits(ai).windowHint * 0.6),
+            })}
+          </p>
+        )}
 
         <div
           className="mb-3 min-h-[200px] flex-1 overflow-auto rounded border p-3"

@@ -11,6 +11,7 @@
 
 import {
   AI_PROVIDERS,
+  AI_TIERS,
   AppConfig,
   DEFAULT_CONFIG,
   Language,
@@ -18,6 +19,7 @@ import {
   ThemeId,
   type AiConfig,
   type AiProvider,
+  type AiTier,
 } from '../types/config';
 import { LANGUAGES } from '../i18n';
 import { invokeSafe, isTauri } from './tauri';
@@ -47,6 +49,7 @@ export function normalizeConfig(raw: unknown): AppConfig {
       // 截断长度：配置文件可能被手工改坏，超长值只会在请求时变成无意义的 URL
       baseUrl: typeof rawAi.baseUrl === 'string' ? rawAi.baseUrl.trim().slice(0, 300) : '',
       model: typeof rawAi.model === 'string' ? rawAi.model.trim().slice(0, 120) : '',
+      tier: AI_TIERS.includes(rawAi.tier as AiTier) ? (rawAi.tier as AiTier) : DEFAULT_CONFIG.ai.tier,
     },
   };
 }
